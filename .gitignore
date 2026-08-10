@@ -3,6 +3,7 @@
 Thumbs.db
 .vscode/
 .idea/
+.wrangler/
 *.log
 
 # Local-only launch helpers are kept in the repository intentionally.
@@ -10,4 +11,3 @@ Thumbs.db
 .env
 .env.*
 !.env.example
-
