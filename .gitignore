@@ -1,0 +1,13 @@
+# Local and editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
+
+# Local-only launch helpers are kept in the repository intentionally.
+# Mapbox tokens must never be saved in source files.
+.env
+.env.*
+!.env.example
+

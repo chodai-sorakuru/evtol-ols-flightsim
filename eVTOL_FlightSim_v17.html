@@ -1,0 +1,3120 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>eVTOL OLS FlightSim v15 — Realistic Flight Edition</title>
+<script src="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js"></script>
+<link href="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+:root{
+  --bg:#040810;--bg2:#060e18;--bg3:#091420;--bg4:#0d1c2c;
+  --bd:#0c1828;--bd2:#142238;--bd3:#1e3050;
+  --tx:#a8c8e0;--tx2:#486878;--tx3:#1e3040;
+  --ac:#18c0e8;--acg:#00d8a8;
+  --gr:#10b060;--grl:#50d890;
+  --am:#e09818;--aml:#f8d060;
+  --rd:#d83838;--rdl:#f09090;
+  --pu:#9870e0;
+  --mono:'JetBrains Mono','Consolas',monospace;
+  --ui:'Segoe UI',system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100vh;overflow:hidden;background:#000;color:var(--tx);font-family:var(--ui);font-size:11.5px;user-select:none}
+#root{display:grid;grid-template-columns:260px 1fr;grid-template-rows:32px 1fr 20px;height:100vh}
+#hdr{grid-column:1/-1;background:linear-gradient(90deg,#020608,#040c14);border-bottom:1px solid var(--bd2);display:flex;align-items:center;gap:3px;padding:0 6px;z-index:300;overflow:hidden}
+#sb{background:var(--bg2);border-right:1px solid var(--bd);overflow-y:auto;display:flex;flex-direction:column;grid-row:2/3}
+#mw{position:relative;overflow:hidden;grid-row:2/3}
+#ft{grid-column:1/-1;background:var(--bg3);border-top:1px solid var(--bd);display:flex;align-items:center;gap:6px;padding:0 6px;font-size:9px;color:var(--tx3)}
+#map{position:absolute;inset:-10%;width:120%;height:120%;left:-10%;top:-10%;transform-origin:50% 50%;will-change:transform}
+
+/* Header */
+.logo{font-size:11.5px;font-weight:700;color:var(--ac);white-space:nowrap}
+.logo em{color:var(--acg);font-style:normal}
+.logo b{font-size:7.5px;color:var(--tx3);font-weight:400;margin-left:2px}
+.hd{width:1px;height:14px;background:var(--bd2);flex-shrink:0;margin:0 1px}
+.hb{background:var(--bg3);border:1px solid var(--bd2);color:var(--tx);padding:1px 7px;border-radius:3px;font-size:10px;cursor:pointer;transition:all .1s;white-space:nowrap;font-family:var(--ui);flex-shrink:0}
+.hb:hover{border-color:var(--ac);color:var(--ac)}
+.hb.fly{background:#021828;border-color:var(--ac);color:var(--ac);font-weight:700}
+.hb.fly.act{background:var(--ac);color:#000}
+.hb.pk{border-color:var(--acg);color:var(--acg)}
+@keyframes pk{0%,100%{box-shadow:0 0 0 0 rgba(0,216,168,.5)}50%{box-shadow:0 0 0 4px rgba(0,216,168,0)}}
+.hb.pk{animation:pk .8s infinite}
+.ml{margin-left:auto}
+.tok{background:var(--bg3);border:1px solid var(--bd2);color:var(--tx);padding:1px 4px;border-radius:3px;font-size:9.5px;font-family:var(--mono);outline:none;width:220px;flex-shrink:1}
+.tok:focus{border-color:var(--ac)}
+.msel{background:var(--bg3);border:1px solid var(--bd2);color:var(--tx);padding:1px 3px;border-radius:3px;font-size:9.5px;outline:none;cursor:pointer;flex-shrink:0;max-width:140px}
+
+/* Sidebar */
+.sec{border-bottom:1px solid var(--bd)}
+.sh{padding:3px 6px;background:var(--bg3);font-size:8px;font-weight:700;color:var(--tx2);letter-spacing:.8px;text-transform:uppercase;cursor:pointer;display:flex;align-items:center;justify-content:space-between}
+.sh:hover{background:var(--bg4);color:var(--tx)}
+.sh .ar{font-size:8px;color:var(--tx3);transition:transform .1s}
+.sh.cl .ar{transform:rotate(-90deg)}
+.sbody{padding:5px 6px}
+.sbody.cl{display:none}
+.fi{margin-bottom:3px}
+.fi label{display:block;font-size:8.5px;color:var(--tx2);margin-bottom:1px}
+.fi input,.fi select{width:100%;background:var(--bg3);border:1px solid var(--bd2);color:var(--tx);padding:2px 4px;border-radius:2px;font-size:10px;outline:none;transition:border-color .1s;font-family:inherit}
+.fi input:focus,.fi select:focus{border-color:var(--ac)}
+.fi input[type=number]{font-family:var(--mono);text-align:right}
+.fi input[type=range]{padding:0;cursor:pointer}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:3px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:2px}
+.g4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:2px}
+.hn{font-size:8.5px;color:var(--tx3);line-height:1.4}
+.hint-ok{font-size:8px;color:var(--gr);margin-top:2px}
+.hint-err{font-size:8px;color:var(--rd);margin-top:2px}
+.btn{display:inline-flex;align-items:center;gap:2px;padding:2px 6px;border-radius:2px;border:1px solid var(--bd2);background:var(--bg3);color:var(--tx);cursor:pointer;font-size:9.5px;transition:all .1s;font-family:var(--ui)}
+.btn:hover{background:var(--bg4);border-color:var(--ac)}
+.btn.pr{background:#021828;border-color:var(--ac);color:#8de}
+.btn.pr:hover{background:var(--ac);color:#000}
+.btn.full{width:100%;justify-content:center;margin-top:2px}
+.btn.sm{padding:1px 4px;font-size:8.5px}
+.oc{background:var(--bg3);border:1px solid var(--bd2);border-radius:2px;padding:3px 5px;margin-bottom:2px}
+.oh{display:flex;align-items:center;gap:3px;font-size:9px;font-weight:600;margin-bottom:2px}
+.dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.xb{background:none;border:none;color:var(--tx3);cursor:pointer;font-size:11px;margin-left:auto;line-height:1;padding:0}
+.xb:hover{color:var(--rd)}
+.om{font-size:8px;color:var(--tx2);font-family:var(--mono);line-height:1.5}
+#log{flex:1;min-height:60px;overflow-y:auto;padding:3px 5px;font-family:var(--mono);font-size:8.5px;line-height:1.5;color:var(--tx3)}
+.le.ok{color:var(--gr)}.le.w{color:var(--am)}.le.e{color:var(--rd)}.le.i{color:var(--ac)}
+::-webkit-scrollbar{width:3px;height:3px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--bd3);border-radius:2px}
+
+/* ═══════════════════════════
+   ENVIRONMENT OVERLAY
+   ═══════════════════════════ */
+#env-overlay{position:absolute;inset:0;pointer-events:none;z-index:15;transition:opacity .5s}
+#rain-canvas{position:absolute;inset:0;pointer-events:none;z-index:16;display:none}
+#fog-div{position:absolute;inset:0;pointer-events:none;z-index:14;background:rgba(180,200,220,0);transition:background 1s}
+#night-div{position:absolute;inset:0;pointer-events:none;z-index:13;background:rgba(0,0,20,0);transition:background 1s}
+
+/* ═══════════════════════════
+   COCKPIT OVERLAY
+   ═══════════════════════════ */
+#cockpit{position:absolute;inset:0;pointer-events:none;z-index:50;display:none}
+#cockpit.on{display:block}
+
+/* Windshield frame canvas */
+#cpframe{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+
+/* Environment tint on windshield */
+#glass-tint{position:absolute;inset:0;pointer-events:none;background:transparent;transition:background .5s}
+
+/* Cockpit bottom panel */
+#panel{
+  position:absolute;bottom:0;left:0;right:0;height:210px;
+  background:linear-gradient(180deg,#080e18 0%,#050a12 100%);
+  border-top:2px solid #1a3050;pointer-events:auto;
+}
+#panel-edge{position:absolute;top:-10px;left:0;right:0;height:10px;background:linear-gradient(180deg,transparent,#080e18)}
+
+/* Instrument cluster */
+#instr{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);display:flex;gap:10px;align-items:flex-end}
+.dial-wrap{display:flex;flex-direction:column;align-items:center;gap:2px}
+.dial-lbl{font-size:7.5px;color:#2a4858;font-family:var(--mono);letter-spacing:.4px;text-align:center}
+canvas.dial{border-radius:50%;border:1.5px solid rgba(24,192,232,.2);box-shadow:0 0 12px rgba(0,0,0,.8)}
+
+/* Control indiactors */
+#stick-wrap{position:absolute;bottom:18px;right:200px;display:flex;flex-direction:column;align-items:center;gap:2px}
+#coll-wrap{position:absolute;bottom:18px;right:100px;display:flex;flex-direction:column;align-items:center;gap:2px}
+#ped-wrap{position:absolute;bottom:18px;left:60px;display:flex;flex-direction:column;align-items:center;gap:2px}
+.ctrl-lbl{font-size:7.5px;color:#1e3040;font-family:var(--mono);text-align:center}
+
+/* Top HUD */
+#spd-box,#alt-box{
+  position:absolute;top:10px;
+  background:rgba(4,8,16,.9);border:1px solid rgba(24,192,232,.18);border-radius:3px;
+  padding:3px 8px;text-align:center;min-width:68px;
+}
+#spd-box{left:12px}
+#alt-box{right:12px}
+.dv{font-size:24px;font-weight:700;line-height:1;font-family:var(--mono)}
+.dl{font-size:7.5px;letter-spacing:.4px;color:var(--tx2);margin-top:1px}
+
+/* Heading strip */
+#hdg-strip{
+  position:absolute;top:10px;left:50%;transform:translateX(-50%);
+  width:300px;height:30px;
+  background:rgba(4,8,16,.9);border:1px solid rgba(24,192,232,.18);border-radius:3px;overflow:hidden
+}
+#hdg-ptr{position:absolute;bottom:0;left:50%;transform:translateX(-50%);
+  border-left:4px solid transparent;border-right:4px solid transparent;border-bottom:7px solid #f0c030;width:0;height:0}
+
+/* VSI */
+#vsi-tape{position:absolute;top:46px;right:12px;width:18px;height:120px;
+  background:rgba(4,8,16,.9);border:1px solid rgba(24,192,232,.15);border-radius:2px;overflow:hidden}
+#vsi-fill{position:absolute;left:2px;right:2px;border-radius:1px}
+#vsi-zero{position:absolute;top:50%;left:0;right:0;height:1px;background:rgba(255,255,255,.3)}
+#vsi-txt{position:absolute;top:46px;right:34px;font-family:var(--mono);font-size:8.5px;color:var(--ac);text-align:right;white-space:nowrap;line-height:1.4}
+
+/* Large AHI */
+#ahi-wrap{
+  position:absolute;top:46px;left:50%;transform:translateX(-50%);
+  width:150px;height:110px;
+  background:rgba(4,8,16,.88);border:1px solid rgba(24,192,232,.18);border-radius:4px;overflow:hidden
+}
+#ahi-sky{position:absolute;left:-20%;width:140%;height:200%;transform-origin:center 25%}
+#ahi-hline{position:absolute;top:50%;left:0;right:0;height:1px;background:rgba(255,255,255,.3)}
+#ahi-wings{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+.ahi-w{position:absolute;top:50%;height:2px;width:26px;background:#f0c030;border-radius:1px;transform:translateY(-50%)}
+#ahi-wL{left:16px}#ahi-wR{right:16px}
+#ahi-dot{position:absolute;left:50%;top:50%;width:5px;height:5px;background:#f0c030;border-radius:50%;transform:translate(-50%,-50%)}
+
+/* OLS warning */
+#ols-warn{
+  position:absolute;top:46px;left:50%;transform:translateX(-50%);
+  background:rgba(48,8,8,.96);border:2px solid var(--rd);border-radius:4px;
+  padding:4px 14px;font-family:var(--mono);font-size:10.5px;color:var(--rdl);
+  text-align:center;display:none;white-space:nowrap;
+  box-shadow:0 0 20px rgba(216,56,56,.5);animation:blink .5s infinite
+}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.6}}
+#ols-warn.on{display:block}
+
+/* MSA warning */
+#msa-warn{
+  position:absolute;top:90px;left:50%;transform:translateX(-50%);
+  background:rgba(40,24,0,.96);border:1.5px solid var(--am);border-radius:3px;
+  padding:3px 12px;font-family:var(--mono);font-size:9.5px;color:var(--aml);
+  text-align:center;display:none;white-space:nowrap;
+}
+#msa-warn.on{display:block}
+#bld-warn{
+  position:absolute;top:98px;left:50%;transform:translateX(-50%);
+  background:rgba(60,4,4,.97);border:2px solid #ff3030;border-radius:4px;
+  padding:5px 16px;font-family:var(--mono);font-size:11.5px;color:#ffb0b0;font-weight:700;
+  text-align:center;display:none;white-space:nowrap;
+  box-shadow:0 0 26px rgba(255,48,48,.65);animation:blink .3s infinite;z-index:75
+}
+#bld-warn.on{display:block}
+#crash-flash{
+  position:absolute;inset:0;pointer-events:none;opacity:0;z-index:70;
+  background:radial-gradient(ellipse at 50% 55%,rgba(255,40,40,0) 40%,rgba(255,30,30,.55) 100%);
+}
+#crash-flash.amber{background:radial-gradient(ellipse at 50% 55%,rgba(255,160,20,0) 45%,rgba(255,150,20,.45) 100%)}
+#crash-flash.go{animation:crashfl .9s ease-out}
+@keyframes crashfl{0%{opacity:1}100%{opacity:0}}
+
+/* Proximity indicator */
+#prox-indicator{
+  position:absolute;bottom:218px;left:50%;transform:translateX(-50%);
+  display:flex;gap:8px;align-items:center;font-family:var(--mono);font-size:9px;
+  background:rgba(4,8,16,.88);border:1px solid rgba(24,192,232,.15);border-radius:3px;
+  padding:3px 10px
+}
+
+/* Phase badge */
+#phase-badge{
+  position:absolute;bottom:218px;left:50%;transform:translateX(-50%);
+  background:rgba(4,8,16,.88);border:1px solid rgba(24,192,232,.18);border-radius:2px;
+  padding:2px 10px;font-family:var(--mono);font-size:9px;color:var(--ac)
+}
+
+/* Score / mission */
+#score-panel{
+  position:absolute;top:46px;left:12px;
+  background:rgba(4,8,16,.88);border:1px solid rgba(24,192,232,.15);border-radius:3px;
+  padding:4px 8px;font-family:var(--mono);font-size:8.5px;color:var(--tx2);
+  line-height:1.7;min-width:140px;display:none
+}
+#score-panel.on{display:block}
+
+/* Minimap */
+#minimap{
+  position:absolute;bottom:218px;left:12px;
+  width:110px;height:110px;
+  background:rgba(4,8,16,.92);border:1px solid rgba(24,192,232,.15);border-radius:3px;overflow:hidden
+}
+#mm-cv{width:100%;height:100%}
+
+/* Key guide */
+#keyguide{
+  position:absolute;bottom:8px;right:8px;
+  font-family:var(--mono);font-size:7.5px;color:#1e3040;line-height:1.7;text-align:right
+}
+
+/* Pilot POV reticle / flight-path cue */
+#fp-reticle{
+  position:absolute;left:50%;top:39%;width:92px;height:92px;
+  transform:translate(-50%,-50%);pointer-events:none;opacity:.92;
+  filter:drop-shadow(0 0 6px rgba(0,0,0,.9));
+}
+#fp-reticle:before,#fp-reticle:after{content:"";position:absolute;background:rgba(240,192,48,.95)}
+#fp-reticle:before{left:0;right:0;top:50%;height:2px;transform:translateY(-50%)}
+#fp-reticle:after{top:0;bottom:0;left:50%;width:2px;transform:translateX(-50%)}
+#fp-dot{position:absolute;left:50%;top:50%;width:8px;height:8px;border:2px solid rgba(240,192,48,.95);border-radius:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,.15)}
+#fp-horizon-note{position:absolute;left:50%;top:calc(39% + 55px);transform:translateX(-50%);font-family:var(--mono);font-size:8px;color:rgba(240,192,48,.8);background:rgba(4,8,16,.55);padding:1px 6px;border:1px solid rgba(240,192,48,.25);border-radius:2px;white-space:nowrap}
+#cam-badge{position:absolute;right:12px;top:178px;background:rgba(4,8,16,.86);border:1px solid rgba(24,192,232,.18);border-radius:3px;padding:3px 8px;font-family:var(--mono);font-size:8.5px;color:var(--ac)}
+
+
+/* ===== v9 Training Game Layer ===== */
+#target-cue{
+  position:absolute;left:50%;top:28%;transform:translate(-50%,-50%);
+  min-width:130px;text-align:center;font-family:var(--mono);font-size:10px;color:#00d8a8;
+  background:rgba(0,18,18,.72);border:1px solid rgba(0,216,168,.35);border-radius:4px;
+  padding:4px 10px;box-shadow:0 0 18px rgba(0,216,168,.12);display:none
+}
+#target-cue.on{display:block}
+#target-arrow{font-size:28px;line-height:1;color:#00d8a8;text-shadow:0 0 10px rgba(0,216,168,.5)}
+#target-cue.bad{color:#f09090;border-color:rgba(216,56,56,.55);background:rgba(40,8,8,.78)}
+#target-cue.warn{color:#f8d060;border-color:rgba(224,152,24,.55);background:rgba(38,26,0,.78)}
+#instructor{
+  position:absolute;left:50%;bottom:222px;transform:translateX(-50%);
+  max-width:min(520px,62vw);font-family:var(--ui);font-size:11px;line-height:1.45;color:#d8f8ff;
+  background:rgba(4,12,20,.82);border:1px solid rgba(24,192,232,.24);border-radius:5px;
+  padding:6px 10px;text-align:center;display:none;backdrop-filter:blur(4px)
+}
+#instructor.on{display:block}
+#assist-badge{
+  position:absolute;right:12px;top:206px;background:rgba(4,8,16,.86);border:1px solid rgba(0,216,168,.25);
+  border-radius:3px;padding:3px 8px;font-family:var(--mono);font-size:8.5px;color:#00d8a8
+}
+#flight-director{
+  position:absolute;left:50%;top:39%;width:96px;height:48px;transform:translate(-50%,-50%);
+  border:1px dashed rgba(0,216,168,.35);border-radius:50%;display:none;pointer-events:none
+}
+#flight-director.on{display:block}
+.training-chip{display:inline-flex;align-items:center;gap:4px;margin:1px 3px 1px 0;padding:1px 6px;border-radius:999px;border:1px solid var(--bd2);font-size:8px;color:var(--tx2)}
+
+
+/* ════════════════════════════════════════
+   v14: 100-POINT SCORE SYSTEM UI
+   ════════════════════════════════════════ */
+#score-gauge-wrap{
+  position:absolute;bottom:218px;right:12px;
+  background:rgba(4,8,16,.92);border:1px solid rgba(24,192,232,.18);
+  border-radius:4px;padding:5px 7px;text-align:center;min-width:84px;display:none;
+}
+#score-gauge-wrap.on{display:block}
+.sg-label{font-size:7px;color:var(--tx2);font-family:var(--mono);letter-spacing:.5px;margin-bottom:2px;text-transform:uppercase}
+.sg-grade{font-size:22px;font-weight:700;font-family:var(--mono);line-height:1;margin-top:1px}
+.sg-sub{font-size:7.5px;color:var(--tx2);font-family:var(--mono);margin-top:2px}
+#appr-strip{
+  position:absolute;bottom:270px;left:50%;transform:translateX(-50%);
+  background:rgba(4,8,16,.9);border:1px solid rgba(0,216,168,.25);border-radius:3px;
+  padding:3px 12px;font-family:var(--mono);font-size:9px;color:var(--acg);
+  display:none;white-space:nowrap;pointer-events:none;
+}
+#appr-strip.on{display:block}
+#live-score{
+  position:absolute;top:10px;left:50%;transform:translateX(-50%);
+  background:rgba(4,8,16,.88);border:1px solid rgba(24,192,232,.2);border-radius:3px;
+  padding:2px 10px;font-family:var(--mono);font-size:11px;color:var(--ac);
+  white-space:nowrap;display:none;pointer-events:none;z-index:10;
+}
+#live-score.on{display:block}
+#session-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9990;
+  display:none;align-items:center;justify-content:center;
+}
+#session-overlay.on{display:flex}
+#session-box{
+  background:#060e18;border:2px solid rgba(24,192,232,.3);border-radius:10px;
+  padding:28px 36px;min-width:380px;text-align:center;
+  box-shadow:0 0 80px rgba(0,0,0,.9);
+}
+#session-box h2{font-family:var(--mono);font-size:13px;color:var(--ac);letter-spacing:.8px;margin-bottom:12px;text-transform:uppercase}
+.grade-ring{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:92px;height:92px;border-radius:50%;border:3px solid;
+  font-size:48px;font-weight:700;font-family:var(--mono);margin:6px auto 14px;
+}
+.srow{display:flex;justify-content:space-between;align-items:center;
+  font-family:var(--mono);font-size:10px;color:var(--tx2);
+  border-bottom:1px solid var(--bd);padding:5px 0;gap:12px}
+.srow .sv{font-weight:700;font-size:12px;white-space:nowrap}
+.srow.total{border:none;padding-top:10px;border-top:1px solid rgba(24,192,232,.2);margin-top:4px}
+.srow.total .sv{font-size:20px;color:var(--ac)}
+.sbtn{
+  display:inline-flex;align-items:center;gap:6px;padding:7px 20px;
+  border-radius:4px;border:1px solid var(--ac);background:rgba(24,192,232,.12);
+  color:var(--ac);cursor:pointer;font-family:var(--mono);font-size:11px;
+  margin-top:14px;transition:background .15s;letter-spacing:.05em;
+}
+.sbtn:hover{background:rgba(24,192,232,.3)}
+.score-bar-wrap{height:4px;background:rgba(255,255,255,.06);border-radius:2px;flex:1;margin:0 8px}
+.score-bar-fill{height:100%;border-radius:2px}
+
+</style>
+</head>
+<body>
+<div id="root">
+
+<!-- ═══ HEADER ═══ -->
+<div id="hdr">
+  <div class="logo">eVTOL <em>OLS</em> v15 <b>Realistic Flight Sim</b></div>
+  <div class="hd"></div>
+  <button class="hb" id="b-ols" onclick="startPick('ols')">＋OLS</button>
+  <button class="hb" id="b-vp"  onclick="startPick('vp')">＋VP</button>
+  <button class="hb" id="b-start" onclick="startPick('start')" title="任意の開始地点を設定">＋開始点</button>
+  <div class="hd"></div>
+  <button class="hb fly" id="b-fly" onclick="toggleFly()">🚁 飛行開始</button>
+  <select class="msel" id="camMode" onchange="changeCameraMode()" title="カメラモード">
+    <option value="cockpit" selected>👨‍✈️ 一人称</option>
+    <option value="chase">🎥 追従</option>
+    <option value="top">🗺 俯瞰</option>
+  </select>
+  <select class="msel" id="flightFeel" onchange="applyFlightFeel()" title="操縦感">
+    <option value="arcade" selected>🎮 体験モード</option>
+    <option value="evtol">🛸 eVTOL風</option>
+    <option value="heli">🚁 ヘリ風</option>
+    <option value="trainer">🧑‍🏫 教材アシスト</option>
+  </select>
+  <button class="hb" onclick="setupTrainingScenario()" title="現在地周辺にOLSとVPを自動配置">🎯 練習コース</button>
+  <div class="hd"></div>
+  <select class="msel" id="mstyle" onchange="changeStyle()">
+    <option value="standard">🏙 Standard 3D</option>
+    <option value="mapbox://styles/mapbox/standard-satellite">🛰 Standard衛星</option>
+    <option value="mapbox://styles/mapbox/satellite-streets-v12">🛰 衛星+道路</option>
+    <option value="mapbox://styles/mapbox/satellite-v9">🛰 衛星</option>
+    <option value="mapbox://styles/mapbox/dark-v11">🌙 ダーク</option>
+    <option value="mapbox://styles/mapbox/streets-v12">🗺 ストリート</option>
+    <option value="mapbox://styles/mapbox/outdoors-v12">⛰ アウトドア</option>
+    <option value="mapbox://styles/mapbox/navigation-night-v1">🚁 ナビ夜間</option>
+  </select>
+  <div class="hd"></div>
+  <select class="msel" id="spdmode" onchange="changeSpdMode()" title="速度モード">
+    <option value="1" selected>🚁 標準速度</option>
+    <option value="3">⚡ 高速 ×3</option>
+  </select>
+  <select class="msel" id="windsel" onchange="changeWind()" title="風況">
+    <option value="calm" selected>🍃 静穏</option>
+    <option value="light">🌬 微風 3m/s</option>
+    <option value="mod">💨 中風 6m/s+ガスト</option>
+    <option value="strong">🌪 強風 10m/s+ガスト</option>
+  </select>
+  <select class="msel" id="envsel" onchange="changeEnv()">
+    <option value="day">☀️ 昼間 快晴</option>
+    <option value="evening">🌅 夕方</option>
+    <option value="night">🌙 夜間</option>
+    <option value="overcast">☁️ 曇り</option>
+    <option value="rain">🌧 降雨</option>
+    <option value="lowvis">🌫 低視程</option>
+  </select>
+  <div class="hd"></div>
+  <button class="hb" onclick="resetAll()">↺ リセット</button>
+  <div class="ml"></div>
+  <input class="tok" id="tok" placeholder="Mapbox Access Token…">
+  <button class="hb" onclick="initMap()" style="margin-left:2px">地図起動</button>
+</div>
+
+<!-- ═══ SIDEBAR ═══ -->
+<div id="sb">
+
+  <!-- OLS 制限表面 -->
+  <div class="sec">
+    <div class="sh" onclick="tgl(this)"><span>📐 OLS 制限表面 設定</span><span class="ar">▾</span></div>
+    <div class="sbody">
+      <div class="fi"><label>規格</label>
+        <select id="o-std">
+          <option value="mlit">国交省バーティポート(R5.12)</option>
+          <option value="icao">ICAO Annex 14 Vol II</option>
+          <option value="faa">FAA EB-105A</option>
+          <option value="easa">EASA PTS-VPT-DSN</option>
+        </select>
+      </div>
+      <div class="g2">
+        <div class="fi"><label>サイト標高 AMSL(m)</label><input type="number" id="o-elev" value="10" min="0" max="3000"></div>
+        <div class="fi"><label>FATO高 AGL(m)</label><input type="number" id="o-agl" value="0" min="0" max="500"></div>
+      </div>
+      <div class="g2">
+        <div class="fi"><label>D値(m)</label><input type="number" id="o-d" value="15" min="5" max="100"></div>
+        <div class="fi"><label>SA幅(m)</label><input type="number" id="o-sa" value="5" min="3" max="50"></div>
+      </div>
+      <div class="g3">
+        <div class="fi"><label>進入長(m)</label><input type="number" id="o-len" value="1220" min="100" max="3000" step="10"></div>
+        <div class="fi"><label>勾配 1/</label><input type="number" id="o-slp" value="8" min="4" max="20"></div>
+        <div class="fi"><label>末端高(m)</label><input type="number" id="o-top" value="152" min="20" max="500" step="5"></div>
+      </div>
+      <!-- DIR1 -->
+      <div style="font-size:8.5px;color:var(--ac);margin:4px 0 2px;font-weight:700">▶ 進入方向 1</div>
+      <div class="g2">
+        <div class="fi"><label>方位(°)</label><input type="number" id="o-h1" value="0" min="0" max="360"></div>
+        <div class="fi"><label>曲線方向</label>
+          <select id="o-d1dir"><option value="none">直線</option><option value="left">左曲線</option><option value="right">右曲線</option></select>
+        </div>
+      </div>
+      <div class="g3" id="dir1-curve-row">
+        <div class="fi"><label>曲線数</label><select id="o-d1n"><option value="0">0</option><option value="1">1</option><option value="2">2</option></select></div>
+        <div class="fi"><label>直線長S(m)</label><input type="number" id="o-d1s" value="305" min="0" max="1500" step="5"></div>
+        <div class="fi"><label>半径R(m)</label><input type="number" id="o-d1r" value="270" min="100" max="2000" step="10"></div>
+      </div>
+      <div id="dir1-curve-detail" style="display:none;background:var(--bg4);border:1px solid var(--bd2);border-radius:2px;padding:4px;margin-bottom:3px">
+        <div style="font-size:8px;color:var(--tx2);margin-bottom:3px">曲線区間詳細 (MLIT §3.2: R≥270m, 間隔≥150m)</div>
+        <div class="g4">
+          <div class="fi"><label>曲1開始(m)</label><input type="number" id="o-d1cs1" value="200" min="0" max="1000" step="10" oninput="updateCurveHint(1)"></div>
+          <div class="fi"><label>曲1終了(m)</label><input type="number" id="o-d1ce1" value="400" min="0" max="1500" step="10" oninput="updateCurveHint(1)"></div>
+          <div class="fi"><label>曲2開始(m)</label><input type="number" id="o-d1cs2" value="600" min="0" max="2000" step="10" oninput="updateCurveHint(1)"></div>
+          <div class="fi"><label>曲2終了(m)</label><input type="number" id="o-d1ce2" value="800" min="0" max="2500" step="10" oninput="updateCurveHint(1)"></div>
+        </div>
+        <div id="hint-dir1" class="hn"></div>
+      </div>
+      <!-- DIR2 -->
+      <div style="font-size:8.5px;color:var(--acg);margin:4px 0 2px;font-weight:700">▶ 進入方向 2</div>
+      <div class="g2">
+        <div class="fi"><label>方位(°)</label><input type="number" id="o-h2" value="180" min="0" max="360"></div>
+        <div class="fi"><label>曲線方向</label>
+          <select id="o-d2dir"><option value="none">直線</option><option value="left">左曲線</option><option value="right">右曲線</option></select>
+        </div>
+      </div>
+      <div class="g3">
+        <div class="fi"><label>曲線数</label><select id="o-d2n"><option value="0">0</option><option value="1">1</option><option value="2">2</option></select></div>
+        <div class="fi"><label>直線長S(m)</label><input type="number" id="o-d2s" value="305" min="0" max="1500" step="5"></div>
+        <div class="fi"><label>半径R(m)</label><input type="number" id="o-d2r" value="270" min="100" max="2000" step="10"></div>
+      </div>
+      <div id="dir2-curve-detail" style="display:none;background:var(--bg4);border:1px solid var(--bd2);border-radius:2px;padding:4px;margin-bottom:3px">
+        <div style="font-size:8px;color:var(--tx2);margin-bottom:3px">曲線区間詳細</div>
+        <div class="g4">
+          <div class="fi"><label>曲1開始(m)</label><input type="number" id="o-d2cs1" value="200" min="0" max="1000" step="10" oninput="updateCurveHint(2)"></div>
+          <div class="fi"><label>曲1終了(m)</label><input type="number" id="o-d2ce1" value="400" min="0" max="1500" step="10" oninput="updateCurveHint(2)"></div>
+          <div class="fi"><label>曲2開始(m)</label><input type="number" id="o-d2cs2" value="600" min="0" max="2000" step="10" oninput="updateCurveHint(2)"></div>
+          <div class="fi"><label>曲2終了(m)</label><input type="number" id="o-d2ce2" value="800" min="0" max="2500" step="10" oninput="updateCurveHint(2)"></div>
+        </div>
+        <div id="hint-dir2" class="hn"></div>
+      </div>
+      <div class="g2">
+        <div class="fi"><label>不透明度</label><input type="range" id="o-op" min="0.05" max="0.75" step="0.05" value="0.38"></div>
+        <div class="fi"><label>カラー</label>
+          <select id="o-col">
+            <option value="cy">シアン</option><option value="am">アンバー</option>
+            <option value="gr">グリーン</option><option value="pu">パープル</option><option value="rd">レッド</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn pr full" onclick="startPick('ols')">＋ 地図クリックで設置</button>
+    </div>
+  </div>
+
+  <!-- OLS一覧 -->
+  <div class="sec">
+    <div class="sh" onclick="tgl(this)"><span>📋 OLS一覧 (<span id="olsN">0</span>)</span><span class="ar">▾</span></div>
+    <div class="sbody" id="ols-list"><div class="hn">未設置</div></div>
+  </div>
+
+  <!-- VP一覧 -->
+  <div class="sec">
+    <div class="sh" onclick="tgl(this)"><span>🏢 バーティポート (<span id="vpN">0</span>)</span><span class="ar">▾</span></div>
+    <div class="sbody" id="vp-list"><div class="hn">未設置</div></div>
+  </div>
+
+  <!-- 機体設定 -->
+  <div class="sec">
+    <div class="sh" onclick="tgl(this)"><span>🚁 機体 / 飛行設定</span><span class="ar">▾</span></div>
+    <div class="sbody">
+      <div class="fi"><label>機体タイプ</label>
+        <select id="ac-type" onchange="applyACType()">
+          <option value="heli">ヘリコプター (旋回重視)</option>
+          <option value="evtol">eVTOL (マルチロータ)</option>
+          <option value="cessna">セスナ型 (固定翼)</option>
+          <option value="fast">高速ヘリ (300km/h)</option>
+        </select>
+      </div>
+      <div class="g2">
+        <div class="fi"><label>前進最大速度(km/h)</label><input type="number" id="ac-vne" value="250" min="60" max="400" step="10"></div>
+        <div class="fi"><label>最大上昇(m/s) 1500ft/min≈7.6</label><input type="number" id="ac-clb" value="7.6" min="2.5" max="12" step="0.1"></div>
+      </div>
+      <div class="g2">
+        <div class="fi"><label>ヨー率(°/s)</label><input type="number" id="ac-yaw" value="15" min="5" max="60" step="1"></div>
+        <div class="fi"><label>ピッチ最大(°)</label><input type="number" id="ac-pitch" value="20" min="5" max="45" step="1"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 体験モード設定 -->
+  <div class="sec">
+    <div class="sh" onclick="tgl(this)"><span>🎮 体験モード</span><span class="ar">▾</span></div>
+    <div class="sbody">
+      <div class="fi"><label>ゲーム目的</label>
+        <select id="game-mode" onchange="updateGamePanel()">
+          <option value="gate" selected>VPゲートを順に通過</option>
+          <option value="approach">OLS進入面を見ながら低速進入</option>
+          <option value="free">自由飛行・空間確認</option>
+        </select>
+      </div>
+      <div class="g2">
+        <div class="fi"><label>ゲート半径(m)</label><input type="number" id="gate-radius" value="85" min="20" max="250" step="5"></div>
+        <div class="fi"><label>通過上限高度(m AGL)</label><input type="number" id="gate-alt" value="120" min="20" max="500" step="10"></div>
+      </div>
+      <div class="g2">
+        <div class="fi"><label>最低安全高度ゲーム判定(m)</label><input type="number" id="msa-game" value="60" min="0" max="300" step="10"></div>
+        <div class="fi"><label>警告感度</label>
+          <select id="warn-sens"><option value="easy" selected>やさしい</option><option value="normal">標準</option><option value="strict">厳しめ</option></select>
+        </div>
+      </div>
+      <button class="btn pr full" onclick="setupTrainingScenario()">🎯 練習コースを自動作成</button>
+      <div class="hn" style="margin-top:4px">目的は操縦技能評価ではなく、FATO、進入面、転移面、周辺空間の位置関係をゲーム感覚で体験することです。</div>
+    </div>
+  </div>
+
+  <!-- 飛行状態 -->
+  <div class="sec">
+    <div class="sh" onclick="tgl(this)"><span>📊 飛行状態</span><span class="ar">▾</span></div>
+    <div class="sbody" id="pp"><div class="hn">飛行開始で表示</div></div>
+  </div>
+
+  <!-- ゲームスコア -->
+  <div class="sec">
+    <div class="sh" onclick="tgl(this)"><span>🏆 ミッション / スコア</span><span class="ar">▾</span></div>
+    <div class="sbody" id="game-panel">
+      <div class="hn">飛行開始でミッション表示</div>
+    </div>
+  </div>
+
+  <!-- ログ -->
+  <div class="sec" style="flex:1;display:flex;flex-direction:column;min-height:0">
+    <div class="sh" style="cursor:default"><span>📡 ログ</span>
+      <button class="btn sm" onclick="document.getElementById('log').innerHTML=''">CLR</button>
+    </div>
+    <div id="log"></div>
+  </div>
+</div>
+
+<!-- ═══ MAP ═══ -->
+<div id="mw">
+  <div id="map"></div>
+  <div id="night-div"></div>
+  <div id="fog-div"></div>
+  <canvas id="rain-canvas"></canvas>
+
+  <!-- ════ COCKPIT ════ -->
+  <div id="cockpit">
+    <!-- Windshield frame -->
+    <canvas id="cpframe" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none"></canvas>
+    <!-- Glass tint for env -->
+    <div id="glass-tint"></div>
+    <!-- Vignette -->
+    <div style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% 38%,transparent 38%,rgba(0,0,0,.42) 100%);pointer-events:none"></div>
+
+    <!-- Top HUD -->
+    <div id="spd-box"><div class="dv" id="hspd" style="color:#f0c030">0</div><div class="dl">km/h</div></div>
+    <div id="hdg-strip"><canvas id="hdg-cv" width="300" height="30"></canvas><div id="hdg-ptr"></div></div>
+    <div id="alt-box"><div class="dv" id="halt" style="color:#18c0e8">0</div><div class="dl">m AGL</div></div>
+    <div id="vsi-tape"><div id="vsi-fill"></div><div id="vsi-zero"></div></div>
+    <div id="vsi-txt">0.0<br>m/s</div>
+    <div id="ahi-wrap">
+      <div id="ahi-sky"></div>
+      <div id="ahi-hline"></div>
+      <div id="ahi-wings"><div class="ahi-w" id="ahi-wL"></div><div class="ahi-w" id="ahi-wR"></div><div id="ahi-dot"></div></div>
+    </div>
+
+
+    <!-- Pilot POV aiming / attitude reference -->
+    <div id="fp-reticle"><div id="fp-dot"></div></div>
+    <div id="fp-horizon-note">PILOT POV / camera looks ahead of aircraft</div>
+    <div id="cam-badge">CAM: PILOT POV</div>
+    <div id="assist-badge">ASSIST: ON</div>
+    <div id="flight-director"></div>
+    <div id="target-cue"><div id="target-arrow">▲</div><div id="target-text">TARGET</div></div>
+    <div id="instructor" class="on">W/Sでピッチトリム（速度調整）、A/Dでロールトリム（バンク→旋回）、Q/Eはペダル、↑↓でパワー。離しても姿勢が維持されます。</div>
+
+    <!-- Warnings -->
+    <div id="ols-warn">⚠ OLS 侵犯<br><span id="ols-warn-txt" style="font-size:8.5px">—</span></div>
+    <div id="msa-warn">⚠ <span id="msa-warn-txt">最低安全高度</span></div>
+    <div id="bld-warn">💥 <span id="bld-warn-txt">建物衝突</span></div>
+    <div id="crash-flash"></div>
+
+    <!-- Score & Phase -->
+    <div id="score-panel" class="on">
+      <div id="score-txt">スコア: 0</div>
+      <div id="mission-txt">ミッション: VP間を飛行</div>
+      <div id="flight-time-txt">飛行時間: 0:00</div>
+    </div>
+    <div id="phase-badge">HOVER</div>
+
+    <!-- Proximity -->
+    <div id="prox-indicator">
+      <span id="prox-bld" style="color:var(--gr)">建物 —</span>
+      <span>│</span>
+      <span id="prox-ter" style="color:var(--gr)">地形 —</span>
+    </div>
+
+    <!-- Minimap -->
+    <div id="minimap"><canvas id="mm-cv" width="110" height="110"></canvas></div>
+
+    <!-- v14: Score Gauge -->
+    <div id="score-gauge-wrap" class="on">
+      <div class="sg-label">Flight Score</div>
+      <canvas id="score-gauge-cv" width="84" height="52"></canvas>
+      <div class="sg-grade" id="sg-grade" style="color:var(--ac)">—</div>
+      <div class="sg-sub" id="sg-pts">0 / 100</div>
+    </div>
+    <div id="appr-strip"></div>
+    <!-- v14d: mouse joystick indicator -->
+    <div id="mouse-joy" class="on">
+      <div id="mj-ring"></div>
+      <div id="mj-xline"></div>
+      <div id="mj-yline"></div>
+      <div id="mj-center"></div>
+      <div id="mj-dot" id="mj-dot"></div>
+    </div>
+    <div id="lock-hint" class="on" onclick="document.getElementById('mw').requestPointerLock&&document.getElementById('mw').requestPointerLock()">
+      🖱 クリックでマウスロック
+    </div>
+    <div id="live-score" class="on">● SCORE: <span id="ls-num" style="color:#f0c030;font-weight:700">0</span>/100 &nbsp;<span id="ls-grade">—</span></div>
+
+    <!-- Instrument panel -->
+    <div id="panel">
+      <div id="panel-edge"></div>
+      <div id="instr">
+        <div class="dial-wrap"><canvas class="dial" id="ahi-dial" width="96" height="96"></canvas><div class="dial-lbl">人工水平儀</div></div>
+        <div class="dial-wrap"><canvas class="dial" id="asi-dial" width="108" height="108"></canvas><div class="dial-lbl">対気速度計 km/h</div></div>
+        <div class="dial-wrap"><canvas class="dial" id="alt-dial" width="108" height="108"></canvas><div class="dial-lbl">高 度 計 m</div></div>
+        <div class="dial-wrap"><canvas class="dial" id="vsi-dial" width="96" height="96"></canvas><div class="dial-lbl">昇 降 計 m/s</div></div>
+        <div class="dial-wrap"><canvas class="dial" id="hi-dial" width="96" height="96"></canvas><div class="dial-lbl">方位指示計</div></div>
+      </div>
+      <div id="stick-wrap"><canvas id="stick-cv" width="76" height="76"></canvas><div class="ctrl-lbl">サイクリック</div></div>
+      <div id="coll-wrap"><canvas id="coll-cv" width="28" height="96"></canvas><div class="ctrl-lbl">パワー</div></div>
+      <div id="ped-wrap"><canvas id="ped-cv" width="96" height="46"></canvas><div class="ctrl-lbl">ペダル / ヨー</div></div>
+      <div id="keyguide">
+        🖱前後: ピッチトリム（速度）<br>
+        🖱左右: ロールトリム（旋回）<br>
+        🖱L/R: ペダルヨー<br>
+        W/S A/D: キーボードトリム<br>
+        Q/E: ペダル補正<br>
+        Space/F　速度を殺してホバー安定<br>
+        C　視点切替 / R　機体リセット<br>
+        ↑↓　上昇/降下（コレクティブ）<br>
+        Shift　高速上昇・加速補助<br>
+        F　ホバー固定（速度減衰）<br>
+        C　カメラ切替（一人称/追従/俯瞰）<br>
+        ESC　終了
+      </div>
+    </div>
+  </div><!-- /cockpit -->
+</div><!-- /mw -->
+
+<div id="ft">
+  <span>eVTOL OLS FlightSim v14 — 100pt Flight Evaluation Edition</span>
+  <span>│ MLIT バーティポート整備指針 R5.12 / 航空法最低安全高度</span>
+  <span style="margin-left:auto" id="fll">—</span>
+  <span id="fst">待機中</span>
+</div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════
+   CONSTANTS
+   ═══════════════════════════════════════════════════════ */
+const D2R=Math.PI/180, R2D=180/Math.PI, RE=6371000;
+const KT=0.514444;
+const OLS_INTER_S=150; // MLIT §3.2 曲線間最小直線距離
+
+/* OLS colour map */
+const THEME={
+  cy:{app:'#18c0e8',tr:'#e09818',sa:'#10b060',fato:'#0e90b0'},
+  am:{app:'#e09818',tr:'#e04040',sa:'#e0c018',fato:'#b07010'},
+  gr:{app:'#10c070',tr:'#18c0d0',sa:'#80e0a0',fato:'#108858'},
+  pu:{app:'#9070e0',tr:'#e050c0',sa:'#b090f0',fato:'#5840b0'},
+  rd:{app:'#d83838',tr:'#e08028',sa:'#f05050',fato:'#a82020'},
+};
+
+/* OLS standards — migrated from VP-OLS Viewer v1.9 logic */
+const STD={
+  mlit:{
+    name:'国交省バーティポート整備指針',
+    fatoF:1.5,tlofGroundF:0.83,tlofElevF:1.0,saF:0.25,saOff:3,
+    appr:{slope:0.125,approachLength:1220,approachEndHeight:152.5,divDay:0.10,divNight:0.15,maxWDay:7,maxWNight:10,innerEdgeAtSafetyArea:true},
+    trans:{slope:0.5,height:45}, inner:{radius:0,height:0}
+  },
+  icao:{
+    name:'ICAO Annex 14 Vol II',
+    fatoF:1.5,tlofGroundF:0.83,tlofElevF:1.0,saF:0.25,saOff:3,
+    appr:{slope:0.08,sec1Length:245,sec1Div:0.10,sec2Length:1220,sec2Div:0,maxWDay:7,maxWNight:10,innerEdgeAtSafetyArea:true},
+    trans:{slope:0.5,height:45}, inner:{radius:300,height:45}
+  },
+  faa:{
+    name:'FAA EB-105A',
+    fatoF:1.5,tlofGroundF:0.83,tlofElevF:1.0,saF:0.25,saOff:3,
+    appr:{slope:0.125,sec1Length:300,sec1Div:0.10,sec2Length:1000,sec2Div:0,maxWDay:7,maxWNight:10,innerEdgeAtSafetyArea:true},
+    trans:{slope:0.5,height:40}, inner:{radius:0,height:0}
+  },
+  easa:{
+    name:'EASA PTS-VPT-DSN',
+    fatoF:1.5,tlofGroundF:1.0,tlofElevF:1.0,saF:0.25,saOff:3,
+    appr:{slope:0.125,approachLength:1220,approachEndHeight:152.5,divDay:0.15,divNight:0.15,maxWDay:10,maxWNight:10,innerEdgeAtSafetyArea:true},
+    trans:{slope:0.5,height:45}, inner:{radius:0,height:0}
+  },
+};
+
+/* Aircraft presets */
+const AC_PRESET={
+  // v12: game/education tuning. Forward speed is capped separately from rear/lateral speed.
+  // 1500 ft/min = 7.62 m/s. 500 ft/min = 2.54 m/s.
+  heli:  {vne:250,clb:7.6, dsc:5.1, yaw:78, pitchMax:22,rollMax:34,pitchTau:.14,rollTau:.11,pedTau:.07,drag:.30, tq:9},
+  evtol: {vne:250,clb:7.6, dsc:5.1, yaw:95, pitchMax:27,rollMax:40,pitchTau:.10,rollTau:.09,pedTau:.06,drag:.34, tq:7},
+  cessna:{vne:250,clb:7.6, dsc:5.1, yaw:35, pitchMax:17,rollMax:42,pitchTau:.20,rollTau:.16,pedTau:.12,drag:.22, tq:4},
+  fast:  {vne:300,clb:7.6, dsc:5.1, yaw:90, pitchMax:30,rollMax:45,pitchTau:.09,rollTau:.08,pedTau:.05,drag:.22, tq:12},
+};
+
+const PHASE_C={parked:'#9070e0',hover:'#d83838',takeoff:'#e07828',
+  climbout:'#e09818',cruise:'#18c0e8',descend:'#e09818',approach:'#e07828',land:'#d83838'};
+const PHASE_JP={parked:'駐機',hover:'ホバリング',takeoff:'離陸',
+  climbout:'クライムアウト',cruise:'巡航',descend:'降下',approach:'最終進入',land:'着陸'};
+
+/* ═══════════════════════════════════════════════════════
+   STATE
+   ═══════════════════════════════════════════════════════ */
+let map=null, pickMode=null;
+let olsList=[], vpList=[];
+let flyOn=false, flyRAF=null, flyLast=0;
+let idC=0; const uid=()=>'u'+(++idC);
+
+/* Aircraft dynamic state */
+const H={
+  lat:35.68, lng:139.77, alt:2,      // alt = AGL (地表からの高さ) v15
+  altMSL:2, gnd:0,                    // v15: 物理真値はMSL、gnd=直下地形標高
+  // Attitude (deg)
+  hdg:0, pitch:0, roll:0,
+  // World velocity m/s (East, North, Up)
+  vx:0, vy:0, vz:0,
+  spd:0, spdKmh:0,
+  // Smoothed control inputs (−1…+1)
+  cycPitch:0, cycRoll:0, pedal:0,
+  collective:0.30,
+  // Derived
+  phase:'parked',
+  olsViol:false, olsViolTxt:'',
+  msaViol:false, msaTxt:'',
+  proxBld:999, proxTer:999,
+  marker:null, trailC:[],
+  gEffect:false,
+};
+
+/* Live aircraft params (copied from preset at start) */
+let AP={...AC_PRESET.heli};
+const g=9.81, mass=4000;
+
+const KEYS={};
+document.addEventListener('keydown',e=>{
+  KEYS[e.code]=true;
+  if(['ArrowUp','ArrowDown','Space'].includes(e.code))e.preventDefault();
+  if(e.code==='KeyC' && !e.repeat) cycleCamMode();
+  if(e.code==='KeyR' && !e.repeat && flyOn) initHeli();
+});
+document.addEventListener('keyup',e=>KEYS[e.code]=false);
+
+/* Score & mission */
+let score=0, flightStartTime=null, flightSec=0;
+let missionsCompleted=0, olsViolCount=0, msaViolCount=0;
+/* v15.2: 衝突カウンタ */
+let bldHitCount=0, terHitCount=0, _prevBldHit=false, _bldTick=0, _bldWarnUntil=0;
+function triggerCrashAlert(msg,kind){
+  // kind: 'red'=物理衝突 / 'amber'=制限表面侵犯
+  const fl=document.getElementById('crash-flash');
+  if(fl){fl.classList.remove('go','amber');void fl.offsetWidth; // reflowでアニメ再始動
+    if(kind==='amber')fl.classList.add('amber');
+    fl.classList.add('go');}
+  if(kind!=='amber'){
+    const bw=document.getElementById('bld-warn'),bt=document.getElementById('bld-warn-txt');
+    if(bt)bt.textContent=msg;
+    if(bw)bw.classList.add('on');
+    _bldWarnUntil=performance.now()+3000;
+  }
+  showInstructor(msg,3600,kind==='amber'?'warn':'bad');
+  log('💥 '+msg,'e');
+}
+let _prevOls=false,_prevMsa=false;
+let _msgUntil=0,_lastTargetCue='';
+
+/* Camera roll for DOM rendering */
+let _camRoll=0;
+let _dispRoll=0,_dispPitch=0; // v14b: display-smoothed values
+let pitchTrim=0,rollTrim=0;     // v14c: cyclic trim accumulators (persist between frames)
+/* v14d: mouse control */
+let _mouseDX=0,_mouseDY=0;
+let _mouseL=false,_mouseR=false;
+const MOUSE_PITCH_SENS=0.0035; // trim change per pixel
+const MOUSE_ROLL_SENS =0.0035;
+let _pointerLocked=false;
+/* ── v15: terrain / wind / camera globals ── */
+let _dt=0.016, _lastMapRot=999, _terrainOK=false;
+const WIND={sel:'calm',spd:0,dirDeg:270,gustSig:0,gx:0,gy:0};
+const CAMS={lat:0,lng:0,altMSL:60,bearing:0,pitch:74,init:false};
+let CAM_ENGINE='auto'; // 'free' | 'jump' — 飛行開始時に一度だけ判定
+let SPD_MODE=1;          // v15.1: 速度モード倍率 (1=標準 / 3=高速)
+function changeSpdMode(){
+  SPD_MODE=+(document.getElementById('spdmode')?.value||1);
+  log(SPD_MODE>1?`高速モード: 最大速度 ${Math.round((AP.vne||250)*SPD_MODE)}km/h (×${SPD_MODE})`:'標準速度モード','i');
+}
+function gaussRand(){let u=0,v=0;while(u===0)u=Math.random();while(v===0)v=Math.random();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+function terrainElevAt(lat,lng){
+  try{
+    if(map&&typeof map.queryTerrainElevation==='function'){
+      const e=map.queryTerrainElevation([lng,lat],{exaggerated:true});
+      if(e!=null&&isFinite(e)){_terrainOK=true;return e;}
+    }
+  }catch(err){}
+  return null;
+}
+function smAlpha(dt,tau){return 1-Math.exp(-dt/Math.max(1e-4,tau));}
+function changeWind(){
+  const v=document.getElementById('windsel')?.value||'calm';
+  const cfg={calm:[0,0],light:[3,0.5],mod:[6,1.4],strong:[10,2.8]}[v]||[0,0];
+  WIND.sel=v;WIND.spd=cfg[0];WIND.gustSig=cfg[1];
+  if(cfg[0]>0)WIND.dirDeg=Math.floor(Math.random()*12)*30;
+  WIND.gx=0;WIND.gy=0;
+  log(cfg[0]>0?`風況設定: ${WIND.dirDeg}°から ${cfg[0]}m/s${cfg[1]>0?' ガストあり':''}`:'風況設定: 静穏','i');
+}
+/* v14 score vars */
+let landingScore=0,gateScore=0,wasAirborne=false,landingTriggered=false;
+let bestScore=0,sessionHistory=[];
+let cameraMode='cockpit';
+
+/* Environment */
+let currentEnv='day';
+let rainAnim=null, rainCtx=null, rainDrops=[];
+
+/* ═══════════════════════════════════════════════════════
+   GEO UTILS
+   ═══════════════════════════════════════════════════════ */
+function hav(la1,lo1,la2,lo2){
+  const a=Math.sin((la2-la1)*D2R/2)**2+Math.cos(la1*D2R)*Math.cos(la2*D2R)*Math.sin((lo2-lo1)*D2R/2)**2;
+  return 2*RE*Math.asin(Math.sqrt(a));
+}
+function dest(lat,lng,b,d){
+  const br=b*D2R,dr=d/RE;
+  const la=Math.asin(Math.sin(lat*D2R)*Math.cos(dr)+Math.cos(lat*D2R)*Math.sin(dr)*Math.cos(br));
+  const lo=lng*D2R+Math.atan2(Math.sin(br)*Math.sin(dr)*Math.cos(lat*D2R),Math.cos(dr)-Math.sin(lat*D2R)*Math.sin(la));
+  return{lat:la*R2D,lng:lo*R2D};
+}
+function brg(la1,lo1,la2,lo2){
+  const dL=(lo2-lo1)*D2R;
+  return(Math.atan2(Math.sin(dL)*Math.cos(la2*D2R),Math.cos(la1*D2R)*Math.sin(la2*D2R)-Math.sin(la1*D2R)*Math.cos(la2*D2R)*Math.cos(dL))*R2D+360)%360;
+}
+function ll2mc(lat,lng,alt){return mapboxgl.MercatorCoordinate.fromLngLat({lng,lat},alt);}
+
+/* Local meter offset → lat/lng */
+function m2ll(lat0,lng0,dxE,dyN){
+  return{lat:lat0+dyN/RE*R2D, lng:lng0+dxE/(RE*Math.cos(lat0*D2R))*R2D};
+}
+
+/* ═══════════════════════════════════════════════════════
+   UI HELPERS
+   ═══════════════════════════════════════════════════════ */
+function tgl(h){h.classList.toggle('cl');h.nextElementSibling.classList.toggle('cl')}
+function log(m,t=''){
+  const e=document.createElement('div');
+  e.className='le'+(t?' '+t:'');
+  e.textContent=`[${new Date().toLocaleTimeString('ja')}] ${m}`;
+  const l=document.getElementById('log');l.appendChild(e);l.scrollTop=l.scrollHeight;
+}
+function fst(s){document.getElementById('fst').textContent=s}
+
+/* Curve count → show/hide detail panel */
+function updateCurveDetailVis(n){
+  for(const i of[1,2]){
+    const cnt=+document.getElementById(`o-d${i}n`).value;
+    const dir=document.getElementById(`o-d${i}dir`).value;
+    const show=cnt>=2&&dir!=='none';
+    document.getElementById(`dir${i}-curve-detail`).style.display=show?'block':'none';
+  }
+  updateCurveHint(1);updateCurveHint(2);
+}
+document.addEventListener('DOMContentLoaded',()=>{
+  ['o-d1n','o-d1dir','o-d2n','o-d2dir'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el)el.addEventListener('change',()=>updateCurveDetailVis());
+  });
+});
+function updateCurveHint(i){
+  const s2=+document.getElementById(`o-d${i}cs2`).value;
+  const e1=+document.getElementById(`o-d${i}ce1`).value;
+  const gap=s2-e1;
+  const el=document.getElementById(`hint-dir${i}`);
+  if(!el)return;
+  if(gap>=OLS_INTER_S){el.className='hint-ok';el.textContent=`✓ 曲線間直線 ${gap}m ≥ ${OLS_INTER_S}m`;}
+  else{el.className='hint-err';el.textContent=`✗ 曲線間直線 ${gap}m < ${OLS_INTER_S}m (不適合)`;}
+}
+
+/* ═══════════════════════════════════════════════════════
+   MAP INIT
+   ═══════════════════════════════════════════════════════ */
+function getStyle(){
+  const v=document.getElementById('mstyle').value;
+  return v==='standard'?'mapbox://styles/mapbox/standard':v;
+}
+function initMap(){
+  const tok=document.getElementById('tok').value.trim();
+  if(!tok){alert('Mapbox Access Tokenを入力してください');return;}
+  try{localStorage.setItem('eols6_tok',tok)}catch(e){}
+  mapboxgl.accessToken=tok;
+  map=new mapboxgl.Map({
+    container:'map',style:getStyle(),
+    center:[139.77,35.68],zoom:14.5,pitch:62,bearing:-18,antialias:true,maxPitch:85
+  });
+  map.on('load',onLoad);
+  map.on('error',e=>log('MapError:'+e.error?.message,'e'));
+  map.on('mousemove',e=>{
+    const{lng,lat}=e.lngLat;
+    document.getElementById('fll').textContent=`${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+  });
+}
+
+function onLoad(){
+  /* Terrain */
+  if(!map.getSource('mb-dem')){
+    map.addSource('mb-dem',{type:'raster-dem',url:'mapbox://mapbox.mapbox-terrain-dem-v1',tileSize:512,maxzoom:14});
+  }
+  map.setTerrain({source:'mb-dem',exaggeration:1.0}); // v15: 1.0 = 実標高。AGL/OLS高さと描画地形を一致させる
+
+  /* 3D buildings for ALL non-Standard styles */
+  const sname=document.getElementById('mstyle').value;
+  if(sname!=='standard'&&sname!=='mapbox://styles/mapbox/standard-satellite'){
+    if(!map.getLayer('3d-bld')){
+      const layers=map.getStyle().layers||[];
+      let labelId=null;
+      for(const l of layers){if(l.type==='symbol'&&l.layout&&l.layout['text-field']){labelId=l.id;break;}}
+      try{
+        map.addLayer({
+          id:'3d-bld',source:'composite',sourceLayer:'building',
+          filter:['all',['==','extrude','true'],['has','height']],
+          type:'fill-extrusion',minzoom:13,
+          paint:{
+            'fill-extrusion-color':['interpolate',['linear'],['get','height'],0,'#1a2530',30,'#243240',80,'#3a5878',200,'#4a6890'],
+            'fill-extrusion-height':['coalesce',['get','height'],0],
+            'fill-extrusion-base':['coalesce',['get','min_height'],0],
+            'fill-extrusion-opacity':0.88
+          }
+        },labelId);
+      }catch(e){log('3D建物:'+e.message,'w')}
+    }
+  }
+
+  /* Sky layer */
+  if(!map.getLayer('sky')){
+    try{
+      map.addLayer({id:'sky',type:'sky',paint:{
+        'sky-type':'atmosphere','sky-atmosphere-sun':[0,0],'sky-atmosphere-sun-intensity':15
+      }});
+    }catch(e){}
+  }
+
+  /* Player trail */
+  if(!map.getSource('ply-trail')){
+    map.addSource('ply-trail',{type:'geojson',data:{type:'Feature',geometry:{type:'LineString',coordinates:[]}}});
+    map.addLayer({id:'ply-trail-l',type:'line',source:'ply-trail',
+      paint:{'line-color':'#f0c030','line-width':2.5,'line-opacity':0.9}});
+  }
+
+  applyEnvironment(currentEnv);
+  olsList.forEach(o=>renderOLS3D(o));
+  fst('準備完了');
+  log('地図起動完了','ok');
+  log('OLS設置→VP設置→飛行開始','i');
+  changeCameraMode();
+}
+
+
+function changeStyle(){
+  if(!map)return;
+  map.setStyle(getStyle());
+  map.once('style.load',onLoad);
+}
+
+/* ═══════════════════════════════════════════════════════
+   ENVIRONMENT
+   ═══════════════════════════════════════════════════════ */
+const ENV_SETTINGS={
+  day:   {fog:{color:'rgba(180,220,255,.1)',range:[2,20],'horizon-blend':.06,'high-color':'#aad4f5','space-color':'#0c1118','star-intensity':.1},sky:[0,75],skyInt:20, night:0,  fogDiv:'rgba(0,0,0,0)', glassAlpha:0,  rain:false,label:'昼間 快晴'},
+  evening:{fog:{color:'rgba(255,160,80,.18)',range:[1,12],'horizon-blend':.1,'high-color':'#e87040','space-color':'#100818','star-intensity':.3},sky:[100,45],skyInt:10,night:.2, fogDiv:'rgba(0,0,0,0)',glassAlpha:.08,rain:false,label:'夕方'},
+  night: {fog:{color:'rgba(10,20,40,.6)',range:[.5,8], 'horizon-blend':.04,'high-color':'#0a1828','space-color':'#020408','star-intensity':.8},sky:[0,0],  skyInt:2,  night:.62, fogDiv:'rgba(0,0,20,.05)',glassAlpha:.05,rain:false,label:'夜間'},
+  overcast:{fog:{color:'rgba(120,140,160,.4)',range:[1,8],'horizon-blend':.12,'high-color':'#7090a8','space-color':'#080c10','star-intensity':.0},sky:[0,75],skyInt:5, night:.1,  fogDiv:'rgba(80,90,100,.12)',glassAlpha:.12,rain:false,label:'曇り'},
+  rain:  {fog:{color:'rgba(60,80,100,.55)',range:[.5,6], 'horizon-blend':.15,'high-color':'#4a6070','space-color':'#060a0c','star-intensity':.0},sky:[0,75],skyInt:3,  night:.15, fogDiv:'rgba(60,70,80,.2)', glassAlpha:.2, rain:true, label:'降雨'},
+  lowvis:{fog:{color:'rgba(160,170,180,.72)',range:[.3,3], 'horizon-blend':.25,'high-color':'#a0b0c0','space-color':'#080c10','star-intensity':.0},sky:[0,75],skyInt:2,  night:.08, fogDiv:'rgba(140,150,160,.35)',glassAlpha:.35,rain:false,label:'低視程'},
+};
+
+function changeEnv(){
+  currentEnv=document.getElementById('envsel').value;
+  if(map)applyEnvironment(currentEnv);
+}
+
+function applyEnvironment(env){
+  const s=ENV_SETTINGS[env]||ENV_SETTINGS.day;
+  try{
+    if(map.setFog)map.setFog(s.fog);
+    if(map.getLayer('sky')&&map.setPaintProperty){
+      map.setPaintProperty('sky','sky-atmosphere-sun',s.sky);
+      map.setPaintProperty('sky','sky-atmosphere-sun-intensity',s.skyInt);
+    }
+  }catch(e){}
+  document.getElementById('night-div').style.background=`rgba(0,0,20,${s.night})`;
+  document.getElementById('fog-div').style.background=s.fogDiv;
+  document.getElementById('glass-tint').style.background=`rgba(160,180,200,${s.glassAlpha})`;
+  // Rain
+  const rc=document.getElementById('rain-canvas');
+  if(s.rain){rc.style.display='block';startRain();}
+  else{rc.style.display='none';stopRain();}
+}
+
+function startRain(){
+  const cv=document.getElementById('rain-canvas');
+  const mw=document.getElementById('mw');
+  cv.width=mw.offsetWidth; cv.height=mw.offsetHeight;
+  rainCtx=cv.getContext('2d');
+  rainDrops=Array.from({length:180},()=>({
+    x:Math.random()*cv.width, y:Math.random()*cv.height,
+    len:Math.random()*18+8, spd:Math.random()*4+4, op:Math.random()*.6+.3
+  }));
+  function frame(){
+    rainCtx.clearRect(0,0,cv.width,cv.height);
+    rainCtx.strokeStyle='rgba(160,200,255,0.5)';
+    for(const d of rainDrops){
+      rainCtx.globalAlpha=d.op;
+      rainCtx.lineWidth=0.8;
+      rainCtx.beginPath();
+      rainCtx.moveTo(d.x,d.y);
+      rainCtx.lineTo(d.x-d.len*.15,d.y+d.len);
+      rainCtx.stroke();
+      d.y+=d.spd; d.x-=d.spd*.15;
+      if(d.y>cv.height){d.y=0;d.x=Math.random()*cv.width;}
+    }
+    rainCtx.globalAlpha=1;
+    rainAnim=requestAnimationFrame(frame);
+  }
+  if(rainAnim)cancelAnimationFrame(rainAnim);
+  frame();
+}
+function stopRain(){if(rainAnim){cancelAnimationFrame(rainAnim);rainAnim=null;}}
+
+/* ═══════════════════════════════════════════════════════
+   PICK MODE
+   ═══════════════════════════════════════════════════════ */
+function startPick(m){
+  if(!map){alert('地図を起動してください');return;}
+  pickMode=m;
+  document.getElementById('b-ols').classList.toggle('pk',m==='ols');
+  document.getElementById('b-vp').classList.toggle('pk',m==='vp');
+  const bs=document.getElementById('b-start');if(bs)bs.classList.toggle('pk',m==='start');
+  map.getCanvas().style.cursor='crosshair';
+  log(m==='ols'?'OLS起点クリック…':m==='vp'?'VP設置クリック…':'飛行開始地点をクリック…','i');
+  const handler=(e)=>{
+    const{lng,lat}=e.lngLat;
+    if(pickMode==='ols')addOLS(lat,lng);
+    else if(pickMode==='vp')addVP(lat,lng);
+    else if(pickMode==='start')setStartPoint(lat,lng);
+    pickMode=null;
+    map.getCanvas().style.cursor='';
+    document.getElementById('b-ols').classList.remove('pk');
+    document.getElementById('b-vp').classList.remove('pk');
+    if(bs)bs.classList.remove('pk');
+    map.off('click',handler);
+  };
+  map.on('click',handler);
+}
+
+/* ── v15.2: 任意開始地点 ──────────────────────────────
+   優先順位: START(手動指定) > vpList[0] > 既定座標。
+   飛行中に指定した場合は次回の飛行開始/リセット(R)から適用。 */
+const START={lat:null,lng:null,marker:null};
+function setStartPoint(lat,lng){
+  START.lat=lat;START.lng=lng;
+  if(START.marker)START.marker.remove();
+  const el=document.createElement('div');
+  el.style.cssText='width:20px;height:20px;border-radius:50%;background:#10b060;border:2px solid #d0ffe0;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;font-weight:700;box-shadow:0 0 10px #10b060';
+  el.textContent='S';
+  START.marker=new mapboxgl.Marker({element:el}).setLngLat([lng,lat]).addTo(map);
+  const te=terrainElevAt(lat,lng);
+  log(`開始点設定 (${lat.toFixed(4)},${lng.toFixed(4)}) 標高${te!=null?Math.round(te)+'m':'--'} — 次回の飛行開始から適用`,'ok');
+}
+
+/* ═══════════════════════════════════════════════════════
+   OLS CENTERLINE GENERATOR (ported from vertiport_noise)
+   Supports straight, single-curve, double-curve segments
+   ═══════════════════════════════════════════════════════ */
+function generateCenterline(sx,sy,initAng,totalLen,S_len,curveR,curveDir,nSeg,curveCount=1,interStraight=150){
+  const pts=[];
+  const pushPt=(x,y,dist,ang)=>{
+    const last=pts[pts.length-1];
+    if(last&&Math.hypot(last.x-x,last.y-y)<0.01&&Math.abs(last.dist-dist)<0.01) return;
+    pts.push({x,y,dist,ang});
+  };
+  const lineTo=(state,len,n)=>{
+    const L=Math.max(0,Math.min(len,totalLen-state.dist));
+    if(L<=0) return;
+    const steps=Math.max(1,n||Math.ceil(L/25));
+    for(let i=1;i<=steps;i++){
+      const d=L*i/steps;
+      pushPt(state.x+Math.cos(state.ang)*d,state.y+Math.sin(state.ang)*d,state.dist+d,state.ang);
+    }
+    state.x+=Math.cos(state.ang)*L; state.y+=Math.sin(state.ang)*L; state.dist+=L;
+  };
+  const arcTo=(state,r,len,sign,n)=>{
+    const L=Math.max(0,Math.min(len,totalLen-state.dist));
+    if(L<=0) return;
+    const rr=Math.max(1,r||270);
+    const cx=state.x+Math.cos(state.ang+Math.PI/2*sign)*rr;
+    const cy=state.y+Math.sin(state.ang+Math.PI/2*sign)*rr;
+    const startAng=state.ang-Math.PI/2*sign;
+    const sweep=L/rr*sign;
+    const steps=Math.max(4,n||Math.ceil(Math.abs(sweep)/(Math.PI/48)));
+    for(let i=1;i<=steps;i++){
+      const a=startAng+sweep*i/steps;
+      const hdg=state.ang+sweep*i/steps;
+      pushPt(cx+Math.cos(a)*rr,cy+Math.sin(a)*rr,state.dist+L*i/steps,hdg);
+    }
+    const aEnd=startAng+sweep;
+    state.x=cx+Math.cos(aEnd)*rr; state.y=cy+Math.sin(aEnd)*rr; state.ang+=sweep; state.dist+=L;
+  };
+
+  pushPt(sx,sy,0,initAng);
+  if(curveDir==='none'){
+    const state={x:sx,y:sy,ang:initAng,dist:0};
+    lineTo(state,totalLen,Math.max(8,nSeg));
+    return pts;
+  }
+
+  const sign=curveDir==='left'?-1:1;
+  const state={x:sx,y:sy,ang:initAng,dist:0};
+  const count=Math.max(1,Math.min(4,Math.round(curveCount||1)));
+  const gap=count>=2?Math.max(OLS_INTER_S,interStraight||OLS_INTER_S):0;
+  const firstStraight=Math.max(0,Math.min(S_len||0,totalLen));
+  lineTo(state,firstStraight,Math.ceil(firstStraight/25));
+  if(state.dist>=totalLen) return pts;
+
+  const remaining=totalLen-state.dist;
+  const reservedGap=gap*(count-1);
+  const arcTotal=Math.max(0,remaining-reservedGap);
+  const arcLenEach=count>0?arcTotal/count:0;
+  for(let c=0;c<count;c++){
+    arcTo(state,curveR,arcLenEach,sign,Math.ceil(arcLenEach/20));
+    if(state.dist>=totalLen) break;
+    if(c<count-1) lineTo(state,gap,Math.ceil(gap/25));
+  }
+  if(state.dist<totalLen) lineTo(state,totalLen-state.dist,Math.ceil((totalLen-state.dist)/25));
+  return pts;
+}
+/* ═══════════════════════════════════════════════════════
+   OLS 3D MESH (Three.js TIN)
+   ═══════════════════════════════════════════════════════ */
+function getOP(){
+  return{
+    std: document.getElementById('o-std').value,
+    elev:+document.getElementById('o-elev').value,
+    agl: +document.getElementById('o-agl').value,
+    d:   +document.getElementById('o-d').value,
+    sa:  +document.getElementById('o-sa').value,
+    len: +document.getElementById('o-len').value,
+    slp: +document.getElementById('o-slp').value,
+    top: +document.getElementById('o-top').value,
+    h1:  +document.getElementById('o-h1').value,
+    h2:  +document.getElementById('o-h2').value,
+    op:  +document.getElementById('o-op').value,
+    col: document.getElementById('o-col').value,
+    // DIR1
+    d1dir:document.getElementById('o-d1dir').value,
+    d1n:  +document.getElementById('o-d1n').value,
+    d1s:  +document.getElementById('o-d1s').value,
+    d1r:  +document.getElementById('o-d1r').value,
+    d1cs1:+document.getElementById('o-d1cs1').value,
+    d1ce1:+document.getElementById('o-d1ce1').value,
+    d1cs2:+document.getElementById('o-d1cs2').value,
+    d1ce2:+document.getElementById('o-d1ce2').value,
+    // DIR2
+    d2dir:document.getElementById('o-d2dir').value,
+    d2n:  +document.getElementById('o-d2n').value,
+    d2s:  +document.getElementById('o-d2s').value,
+    d2r:  +document.getElementById('o-d2r').value,
+    d2cs1:+document.getElementById('o-d2cs1').value,
+    d2ce1:+document.getElementById('o-d2ce1').value,
+    d2cs2:+document.getElementById('o-d2cs2').value,
+    d2ce2:+document.getElementById('o-d2ce2').value,
+  };
+}
+
+function m2mc(siteLat,siteLng,dxM,dyM,altM){
+  const lat=siteLat+dyM/RE*R2D;
+  const lng=siteLng+dxM/(RE*Math.cos(siteLat*D2R))*R2D;
+  return ll2mc(lat,lng,altM);
+}
+
+function getApproachTotalLength(apprDef, userLen){
+  if(Number.isFinite(userLen)&&userLen>0) return userLen;
+  if(apprDef.approachLength) return apprDef.approachLength;
+  return (apprDef.sec1Length||0)+(apprDef.sec2Length||0)+(apprDef.sec3Length||0)||1220;
+}
+function approachDivergenceRate(apprDef,isNight){
+  if(isNight&&apprDef.divNight!=null) return apprDef.divNight;
+  if(apprDef.divDay!=null) return apprDef.divDay;
+  return apprDef.sec1Div||0;
+}
+function approachHalfWidthAtDistance(distFromInner,apprDef,isNight,baseHalfW,T_half){
+  if(apprDef.approachLength){
+    const div=approachDivergenceRate(apprDef,isNight);
+    const w=baseHalfW+Math.max(0,distFromInner)*div;
+    return T_half?Math.min(w,T_half):w;
+  }
+  let halfW=baseHalfW,cumD=0;
+  if((apprDef.sec1Length||0)>0){
+    const div=approachDivergenceRate(apprDef,isNight);
+    if(distFromInner<=apprDef.sec1Length){const w=halfW+distFromInner*div;return T_half?Math.min(w,T_half):w;}
+    halfW+=apprDef.sec1Length*div;cumD+=apprDef.sec1Length;
+  }
+  if((apprDef.sec2Length||0)>0){
+    const div=apprDef.sec2Div||0; const localD=distFromInner-cumD;
+    if(localD<=apprDef.sec2Length){const w=halfW+localD*div;return T_half?Math.min(w,T_half):w;}
+    halfW+=apprDef.sec2Length*div;cumD+=apprDef.sec2Length;
+  }
+  if((apprDef.sec3Length||0)>0){
+    const div=apprDef.sec3Div||0; const localD=distFromInner-cumD;
+    if(localD<=apprDef.sec3Length){const w=halfW+localD*div;return T_half?Math.min(w,T_half):w;}
+    halfW+=apprDef.sec3Length*div;
+  }
+  return T_half?Math.min(halfW,T_half):halfW;
+}
+
+function buildOLSMesh(lat,lng,p){
+  const def=STD[p.std]||STD.mlit;
+  const base=p.elev+p.agl;
+  const slope=1/Math.max(1,Number(p.slp)||8);
+  const isNight=false;
+  const D=Math.max(3,Number(p.d)||15);
+  const fatoD=Math.max((def.fatoF||1.5)*D,D);
+  const fatoR=fatoD/2;
+  const tlofF=(def.tlofGroundF||0.83);
+  const tlofR=Math.max(tlofF*D,D*0.5)/2;
+  // The sim UI's SA幅 is treated as an explicit outer margin; attached OLS Viewer uses max(3m, 0.25D) when automatic.
+  const saMarg=Math.max(Number(p.sa)||0, def.saOff||3, D*(def.saF||0.25));
+  const saR=fatoR+saMarg;
+  const totalApprLen=getApproachTotalLength(def.appr,p.len);
+  const T_half=def.appr.maxWDay ? D*((isNight?(def.appr.maxWNight||10):(def.appr.maxWDay||7)))/2 : saR;
+  const transSlope=def.trans?.slope||0.5;
+  const transH=Number(def.trans?.height||45);
+  const NSEG=96, NLAT=8;
+
+  function diskMesh(radius,z,segments=56){
+    const v=[],ix=[];
+    for(let i=0;i<segments;i++){
+      const a0=i/segments*Math.PI*2,a1=(i+1)/segments*Math.PI*2;
+      v.push(0,0,z, Math.cos(a0)*radius,Math.sin(a0)*radius,z, Math.cos(a1)*radius,Math.sin(a1)*radius,z);
+      ix.push(i*3,i*3+1,i*3+2);
+    }
+    return{v:new Float32Array(v),ix:new Uint32Array(ix)};
+  }
+  function ringMesh(r0,r1,z,segments=64){
+    const v=[],ix=[];
+    for(let i=0;i<segments;i++){
+      const a0=i/segments*Math.PI*2,a1=(i+1)/segments*Math.PI*2;
+      v.push(Math.cos(a0)*r0,Math.sin(a0)*r0,z, Math.cos(a0)*r1,Math.sin(a0)*r1,z,
+             Math.cos(a1)*r0,Math.sin(a1)*r0,z, Math.cos(a1)*r1,Math.sin(a1)*r1,z);
+      const b=i*4; ix.push(b,b+1,b+2,b+1,b+3,b+2);
+    }
+    return{v:new Float32Array(v),ix:new Uint32Array(ix)};
+  }
+  function approachMesh(clPts,baseHalfW){
+    if(clPts.length<2)return null;
+    const v=[],ix=[];
+    for(let i=0;i<clPts.length;i++){
+      const cp=clPts[i];
+      const hw=approachHalfWidthAtDistance(cp.dist,def.appr,isNight,baseHalfW,T_half);
+      const alt=base+cp.dist*slope;
+      const nx=Math.cos(cp.ang+Math.PI/2);
+      const ny=Math.sin(cp.ang+Math.PI/2);
+      v.push(cp.x-nx*hw,cp.y-ny*hw,alt);
+      v.push(cp.x+nx*hw,cp.y+ny*hw,alt);
+    }
+    for(let i=0;i<clPts.length-1;i++){
+      const L=i*2,R=L+1,Ln=L+2,Rn=L+3;
+      ix.push(L,R,Rn,L,Rn,Ln);
+    }
+    return{v:new Float32Array(v),ix:new Uint32Array(ix)};
+  }
+  function transMesh(clPts,baseHalfW){
+    if(clPts.length<2)return[];
+    const out=[];
+    const apprReachD=Math.min(transH/slope,totalApprLen);
+    const transCL=clPts.filter(p=>p.dist<=apprReachD+0.01);
+    if(transCL.length<2)return out;
+    for(const side of[-1,1]){
+      const v=[],ix=[];
+      for(let i=0;i<transCL.length;i++){
+        const cp=transCL[i];
+        const hw=approachHalfWidthAtDistance(cp.dist,def.appr,isNight,baseHalfW,T_half);
+        const apprH=cp.dist*slope;
+        const lateralLimit=Math.max(0,(transH-apprH)/transSlope);
+        const nx=Math.cos(cp.ang+Math.PI/2)*side;
+        const ny=Math.sin(cp.ang+Math.PI/2)*side;
+        for(let j=0;j<=NLAT;j++){
+          const t=j/NLAT,lo=lateralLimit*t;
+          v.push(cp.x+nx*(hw+lo),cp.y+ny*(hw+lo),base+Math.min(apprH+lo*transSlope,transH));
+        }
+      }
+      const cols=NLAT+1;
+      for(let i=0;i<transCL.length-1;i++)for(let j=0;j<NLAT;j++){
+        const a=i*cols+j,b=a+1,c=(i+1)*cols+j,d=c+1;
+        if(side>0)ix.push(a,c,d,a,d,b);else ix.push(a,d,c,a,b,d);
+      }
+      out.push({v:new Float32Array(v),ix:new Uint32Array(ix)});
+    }
+    return out;
+  }
+
+  const dirs=[
+    {hdg:p.h1,dir:p.d1dir,n:p.d1n,s:p.d1s,r:p.d1r,interS:OLS_INTER_S},
+    {hdg:p.h2,dir:p.d2dir,n:p.d2n,s:p.d2s,r:p.d2r,interS:OLS_INTER_S},
+  ];
+  const appMeshes=[],trMeshes=[],centerlines=[];
+  for(const dc of dirs){
+    const apprAng=(90-dc.hdg)*D2R;
+    const sx=Math.cos(apprAng)*saR;
+    const sy=Math.sin(apprAng)*saR;
+    const clPts=generateCenterline(sx,sy,apprAng,totalApprLen,dc.s,dc.r,dc.dir,Math.max(80,NSEG),Math.max(1,dc.n||1),dc.interS);
+    centerlines.push({pts:clPts.map(c=>[c.x,c.y]),hdg:dc.hdg});
+    const am=approachMesh(clPts,saR);
+    if(am)appMeshes.push(am);
+    trMeshes.push(...transMesh(clPts,saR));
+  }
+  const fs=diskMesh(fatoR,base,56);
+  const tl=diskMesh(tlofR,base+0.25,40);
+  const sa=ringMesh(fatoR,saR,base+0.05,64);
+  return{app:appMeshes,tr:trMeshes,fv:fs.v,fi:fs.ix,tv:tl.v,ti:tl.ix,sv:sa.v,si:sa.ix,base,lat,lng,centerlines,
+    dims:{D,fatoD,tlofD:tlofR*2,saR,totalApprLen,endH:totalApprLen*slope,T_half,transH}};
+}
+
+function renderOLS3D(ols){
+  try{if(map&&ols.lyrId&&map.getLayer(ols.lyrId))map.removeLayer(ols.lyrId);}catch(e){}
+  const th=THEME[ols.p.col]||THEME.cy;
+  const op=ols.p.op;
+  const md=buildOLSMesh(ols.lat,ols.lng,ols.p);
+  ols.md=md;
+  const lyrId='ols3d-'+ols.id; ols.lyrId=lyrId;
+
+  const layer={
+    id:lyrId,type:'custom',renderingMode:'3d',
+    onAdd(m,gl){
+      this._cam=new THREE.Camera();
+      this._scn=new THREE.Scene();
+      this._scn.add(new THREE.AmbientLight(0xffffff,.65));
+      const dl=new THREE.DirectionalLight(0xffffff,.55);dl.position.set(.5,-.5,1).normalize();this._scn.add(dl);
+      const addM=(vRaw,ixRaw,col,opacity)=>{
+        const geo=new THREE.BufferGeometry();
+        const mv=new Float32Array(vRaw.length);
+        for(let i=0;i<vRaw.length;i+=3){
+          const mc=m2mc(md.lat,md.lng,vRaw[i],vRaw[i+1],vRaw[i+2]);
+          mv[i]=mc.x;mv[i+1]=mc.y;mv[i+2]=mc.z;
+        }
+        geo.setAttribute('position',new THREE.BufferAttribute(mv,3));
+        geo.setIndex(new THREE.BufferAttribute(ixRaw,1));
+        geo.computeVertexNormals();
+        const mat=new THREE.MeshLambertMaterial({color:new THREE.Color(col),
+          transparent:true,opacity,side:THREE.DoubleSide,depthWrite:false,depthTest:false});
+        const mesh=new THREE.Mesh(geo,mat);mesh.renderOrder=999;this._scn.add(mesh);
+        const em=new THREE.LineBasicMaterial({color:new THREE.Color(col),transparent:true,
+          opacity:Math.min(opacity+.25,.95),depthWrite:false,depthTest:false});
+        this._scn.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo,15),em));
+      };
+      md.app.forEach(d=>addM(d.v,d.ix,th.app,op));
+      md.tr.forEach(d=>addM(d.v,d.ix,th.tr,op*.8));
+      addM(md.fv,md.fi,th.fato,.90);
+      if(md.tv&&md.ti)addM(md.tv,md.ti,'#fbbf24',.95);
+      addM(md.sv,md.si,th.sa,.50);
+      this._ren=new THREE.WebGLRenderer({canvas:m.getCanvas(),context:gl,antialias:true});
+      this._ren.autoClear=false;
+    },
+    render(gl,mtx){
+      this._cam.projectionMatrix=new THREE.Matrix4().fromArray(mtx);
+      this._ren.resetState();this._ren.sortObjects=true;
+      this._ren.render(this._scn,this._cam);
+      if(this._map)this._map.triggerRepaint();
+    }
+  };
+  map.addLayer(layer);
+}
+
+function addOLS(lat,lng){
+  const p=getOP(),id=uid(),th=THEME[p.col]||THEME.cy;
+  // v15: 標高欄が0のとき地形標高を自動取得（OLS面と描画地形の整合）
+  if(!p.elev){const te=terrainElevAt(lat,lng);if(te!=null){p.elev=Math.round(te*10)/10;
+    const ef=document.getElementById('o-elev');if(ef)ef.value=p.elev;
+    log(`OLS標高 自動設定: ${p.elev}m (地形DEM)`,'i');}}
+  const el=document.createElement('div');
+  el.style.cssText=`width:13px;height:13px;border-radius:50%;border:2.5px solid ${th.app};background:rgba(0,0,0,.5)`;
+  const mkr=new mapboxgl.Marker({element:el}).setLngLat([lng,lat]).addTo(map);
+  const ols={id,lat,lng,p,mkr,lyrId:null,md:null};
+  olsList.push(ols);renderOLS3D(ols);updateOLSList();
+  log(`OLS設置 (${lat.toFixed(4)},${lng.toFixed(4)}) ${p.std} D=${p.d}m`,'ok');
+}
+function removeOLS(id){
+  const i=olsList.findIndex(o=>o.id===id);if(i<0)return;
+  const o=olsList[i];
+  try{if(map&&o.lyrId&&map.getLayer(o.lyrId))map.removeLayer(o.lyrId);}catch(e){}
+  o.mkr.remove();olsList.splice(i,1);updateOLSList();
+}
+
+/* OLS パラメータをその場で編集して再描画 */
+function editOLSParam(id,field,val){
+  const o=olsList.find(x=>x.id===id);if(!o)return;
+  if(field==='elev'||field==='agl'||field==='d'||field==='sa'||
+     field==='len'||field==='slp'||field==='top'||field==='op'||
+     field==='h1'||field==='h2'||
+     field==='d1s'||field==='d1r'||field==='d1cs1'||field==='d1ce1'||field==='d1cs2'||field==='d1ce2'||
+     field==='d2s'||field==='d2r'||field==='d2cs1'||field==='d2ce1'||field==='d2cs2'||field==='d2ce2'){
+    o.p[field]=+val;
+  }else{
+    o.p[field]=val;
+  }
+  renderOLS3D(o);
+  // ヒント再計算
+  if(['d1cs2','d1ce1','d2cs2','d2ce1'].includes(field)){
+    const n=field.startsWith('d1')?1:2;
+    updateOLSHint(id,n);
+  }
+}
+
+function updateOLSHint(id,dirN){
+  const o=olsList.find(x=>x.id===id);if(!o)return;
+  const s2=dirN===1?o.p.d1cs2:o.p.d2cs2;
+  const e1=dirN===1?o.p.d1ce1:o.p.d2ce1;
+  const gap=s2-e1;
+  const el=document.getElementById(`olshint-${id}-${dirN}`);
+  if(!el)return;
+  if(gap>=OLS_INTER_S){el.className='hint-ok';el.textContent=`✓ 曲線間 ${gap}m`;}
+  else{el.className='hint-err';el.textContent=`✗ 曲線間 ${gap}m < 150m`;}
+}
+
+function updateOLSList(){
+  const b=document.getElementById('ols-list');
+  document.getElementById('olsN').textContent=olsList.length;
+  if(!olsList.length){b.innerHTML='<div class="hn">未設置</div>';return;}
+  b.innerHTML=olsList.map(o=>{
+    const th=THEME[o.p.col]||THEME.cy;
+    const p=o.p;
+    // Curve detail panels
+    const d1showCurveDetail=p.d1n>=2&&p.d1dir!=='none';
+    const d2showCurveDetail=p.d2n>=2&&p.d2dir!=='none';
+    return`<div class="oc">
+      <div class="oh">
+        <span class="dot" style="background:${th.app}"></span>
+        OLS-${o.id} [${p.std}]
+        <button class="xb" onclick="removeOLS('${o.id}')">✕</button>
+      </div>
+      <div class="om" style="margin-bottom:4px">(${o.lat.toFixed(4)},${o.lng.toFixed(4)})</div>
+
+      <!-- 基本設定 -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;margin-bottom:3px">
+        <div class="fi"><label>規格</label>
+          <select onchange="editOLSParam('${o.id}','std',this.value)">
+            ${['mlit','icao','faa','easa'].map(s=>`<option value="${s}"${p.std===s?' selected':''}>${s.toUpperCase()}</option>`).join('')}
+          </select>
+        </div>
+        <div class="fi"><label>カラー</label>
+          <select onchange="editOLSParam('${o.id}','col',this.value)">
+            ${['cy','am','gr','pu','rd'].map(c=>`<option value="${c}"${p.col===c?' selected':''}>${c}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:3px;margin-bottom:3px">
+        <div class="fi"><label>標高AMSL</label><input type="number" value="${p.elev}" onchange="editOLSParam('${o.id}','elev',this.value)" style="width:100%;background:var(--bg4);border:1px solid var(--bd2);color:var(--tx);padding:1px 3px;border-radius:2px;font-size:9.5px;font-family:var(--mono);text-align:right;outline:none"></div>
+        <div class="fi"><label>FATO AGL</label><input type="number" value="${p.agl}" onchange="editOLSParam('${o.id}','agl',this.value)" style="width:100%;background:var(--bg4);border:1px solid var(--bd2);color:var(--tx);padding:1px 3px;border-radius:2px;font-size:9.5px;font-family:var(--mono);text-align:right;outline:none"></div>
+        <div class="fi"><label>D値(m)</label><input type="number" value="${p.d}" onchange="editOLSParam('${o.id}','d',this.value)" style="width:100%;background:var(--bg4);border:1px solid var(--bd2);color:var(--tx);padding:1px 3px;border-radius:2px;font-size:9.5px;font-family:var(--mono);text-align:right;outline:none"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:3px;margin-bottom:3px">
+        <div class="fi"><label>進入長(m)</label><input type="number" value="${p.len}" onchange="editOLSParam('${o.id}','len',this.value)" style="width:100%;background:var(--bg4);border:1px solid var(--bd2);color:var(--tx);padding:1px 3px;border-radius:2px;font-size:9.5px;font-family:var(--mono);text-align:right;outline:none"></div>
+        <div class="fi"><label>勾配1/</label><input type="number" value="${p.slp}" onchange="editOLSParam('${o.id}','slp',this.value)" style="width:100%;background:var(--bg4);border:1px solid var(--bd2);color:var(--tx);padding:1px 3px;border-radius:2px;font-size:9.5px;font-family:var(--mono);text-align:right;outline:none"></div>
+        <div class="fi"><label>末端高(m)</label><input type="number" value="${p.top}" onchange="editOLSParam('${o.id}','top',this.value)" style="width:100%;background:var(--bg4);border:1px solid var(--bd2);color:var(--tx);padding:1px 3px;border-radius:2px;font-size:9.5px;font-family:var(--mono);text-align:right;outline:none"></div>
+      </div>
+      <div style="margin-bottom:2px">
+        <label style="font-size:8px;color:var(--tx2)">不透明度</label>
+        <input type="range" min="0.05" max="0.75" step="0.05" value="${p.op}" oninput="editOLSParam('${o.id}','op',this.value)" style="width:100%">
+      </div>
+
+      <!-- DIR1 -->
+      <div style="font-size:8px;color:var(--ac);font-weight:700;margin:4px 0 2px">▶ DIR1 方位</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;margin-bottom:3px">
+        <div class="fi"><label>方位(°)</label><input type="number" value="${p.h1}" onchange="editOLSParam('${o.id}','h1',this.value)" style="width:100%;background:var(--bg4);border:1px solid var(--bd2);color:var(--tx);padding:1px 3px;border-radius:2px;font-size:9.5px;font-family:var(--mono);text-align:right;outline:none"></div>
+        <div class="fi"><label>曲線方向</label>
+          <select onchange="editOLSParam('${o.id}','d1dir',this.value);updateOLSList()">
+            ${['none','left','right'].map(d=>`<option value="${d}"${p.d1dir===d?' selected':''}>${d==='none'?'直線':d==='left'?'左':' 右'}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:3px;margin-bottom:3px">
+        <div class="fi"><label>曲線数</label>
+          <select onchange="editOLSParam('${o.id}','d1n',this.value);updateOLSList()">
+            ${[0,1,2].map(n=>`<option value="${n}"${p.d1n===n?' selected':''}>${n}</option>`).join('')}
+          </select>
+        </div>
+        <div class="fi"><label>直線S(m)</label><input type="number" value="${p.d1s}" onchange="editOLSParam('${o.id}','d1s',this.value)" style="width:100%;background:var(--bg4);border:1px solid var(--bd2);color:var(--tx);padding:1px 3px;border-radius:2px;font-size:9.5px;font-family:var(--mono);text-align:right;outline:none"></div>
+        <div class="fi"><label>半径R(m)</label><input type="number" value="${p.d1r}" onchange="editOLSParam('${o.id}','d1r',this.value)" style="width:100%;background:var(--bg4);border:1px solid var(--bd2);color:var(--tx);padding:1px 3px;border-radius:2px;font-size:9.5px;font-family:var(--mono);text-align:right;outline:none"></div>
+      </div>
+      ${d1showCurveDetail?`
+      <div style="background:var(--bg4);border:1px solid var(--bd3);border-radius:2px;padding:4px;margin-bottom:3px">
+        <div style="font-size:7.5px;color:var(--tx2);margin-bottom:2px">曲線区間詳細 (MLIT §3.2)</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:2px;margin-bottom:2px">
+          <div class="fi"><label>曲1開始</label><input type="number" value="${p.d1cs1}" id="d1cs1-${o.id}" onchange="editOLSParam('${o.id}','d1cs1',this.value)" style="width:100%;background:var(--bg3);border:1px solid var(--bd2);color:var(--tx);padding:1px 2px;border-radius:2px;font-size:9px;text-align:right;outline:none"></div>
+          <div class="fi"><label>曲1終了</label><input type="number" value="${p.d1ce1}" id="d1ce1-${o.id}" onchange="editOLSParam('${o.id}','d1ce1',this.value);updateOLSHint('${o.id}',1)" style="width:100%;background:var(--bg3);border:1px solid var(--bd2);color:var(--tx);padding:1px 2px;border-radius:2px;font-size:9px;text-align:right;outline:none"></div>
+          <div class="fi"><label>曲2開始</label><input type="number" value="${p.d1cs2}" id="d1cs2-${o.id}" onchange="editOLSParam('${o.id}','d1cs2',this.value);updateOLSHint('${o.id}',1)" style="width:100%;background:var(--bg3);border:1px solid var(--bd2);color:var(--tx);padding:1px 2px;border-radius:2px;font-size:9px;text-align:right;outline:none"></div>
+          <div class="fi"><label>曲2終了</label><input type="number" value="${p.d1ce2}" id="d1ce2-${o.id}" onchange="editOLSParam('${o.id}','d1ce2',this.value)" style="width:100%;background:var(--bg3);border:1px solid var(--bd2);color:var(--tx);padding:1px 2px;border-radius:2px;font-size:9px;text-align:right;outline:none"></div>
+        </div>
+        <div id="olshint-${o.id}-1" class="hn"></div>
+      </div>`:''}
+
+      <!-- DIR2 -->
+      <div style="font-size:8px;color:var(--acg);font-weight:700;margin:4px 0 2px">▶ DIR2 方位</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;margin-bottom:3px">
+        <div class="fi"><label>方位(°)</label><input type="number" value="${p.h2}" onchange="editOLSParam('${o.id}','h2',this.value)" style="width:100%;background:var(--bg4);border:1px solid var(--bd2);color:var(--tx);padding:1px 3px;border-radius:2px;font-size:9.5px;font-family:var(--mono);text-align:right;outline:none"></div>
+        <div class="fi"><label>曲線方向</label>
+          <select onchange="editOLSParam('${o.id}','d2dir',this.value);updateOLSList()">
+            ${['none','left','right'].map(d=>`<option value="${d}"${p.d2dir===d?' selected':''}>${d==='none'?'直線':d==='left'?'左':' 右'}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:3px;margin-bottom:3px">
+        <div class="fi"><label>曲線数</label>
+          <select onchange="editOLSParam('${o.id}','d2n',this.value);updateOLSList()">
+            ${[0,1,2].map(n=>`<option value="${n}"${p.d2n===n?' selected':''}>${n}</option>`).join('')}
+          </select>
+        </div>
+        <div class="fi"><label>直線S(m)</label><input type="number" value="${p.d2s}" onchange="editOLSParam('${o.id}','d2s',this.value)" style="width:100%;background:var(--bg4);border:1px solid var(--bd2);color:var(--tx);padding:1px 3px;border-radius:2px;font-size:9.5px;font-family:var(--mono);text-align:right;outline:none"></div>
+        <div class="fi"><label>半径R(m)</label><input type="number" value="${p.d2r}" onchange="editOLSParam('${o.id}','d2r',this.value)" style="width:100%;background:var(--bg4);border:1px solid var(--bd2);color:var(--tx);padding:1px 3px;border-radius:2px;font-size:9.5px;font-family:var(--mono);text-align:right;outline:none"></div>
+      </div>
+      ${d2showCurveDetail?`
+      <div style="background:var(--bg4);border:1px solid var(--bd3);border-radius:2px;padding:4px;margin-bottom:3px">
+        <div style="font-size:7.5px;color:var(--tx2);margin-bottom:2px">曲線区間詳細</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:2px;margin-bottom:2px">
+          <div class="fi"><label>曲1開始</label><input type="number" value="${p.d2cs1}" onchange="editOLSParam('${o.id}','d2cs1',this.value)" style="width:100%;background:var(--bg3);border:1px solid var(--bd2);color:var(--tx);padding:1px 2px;border-radius:2px;font-size:9px;text-align:right;outline:none"></div>
+          <div class="fi"><label>曲1終了</label><input type="number" value="${p.d2ce1}" onchange="editOLSParam('${o.id}','d2ce1',this.value);updateOLSHint('${o.id}',2)" style="width:100%;background:var(--bg3);border:1px solid var(--bd2);color:var(--tx);padding:1px 2px;border-radius:2px;font-size:9px;text-align:right;outline:none"></div>
+          <div class="fi"><label>曲2開始</label><input type="number" value="${p.d2cs2}" onchange="editOLSParam('${o.id}','d2cs2',this.value);updateOLSHint('${o.id}',2)" style="width:100%;background:var(--bg3);border:1px solid var(--bd2);color:var(--tx);padding:1px 2px;border-radius:2px;font-size:9px;text-align:right;outline:none"></div>
+          <div class="fi"><label>曲2終了</label><input type="number" value="${p.d2ce2}" onchange="editOLSParam('${o.id}','d2ce2',this.value)" style="width:100%;background:var(--bg3);border:1px solid var(--bd2);color:var(--tx);padding:1px 2px;border-radius:2px;font-size:9px;text-align:right;outline:none"></div>
+        </div>
+        <div id="olshint-${o.id}-2" class="hn"></div>
+      </div>`:''}
+    </div>`;
+  }).join('');
+
+  // ヒント初期化
+  olsList.forEach(o=>{
+    updateOLSHint(o.id,1);
+    updateOLSHint(o.id,2);
+  });
+}
+function olsHAt(distM,p){
+  const def=STD[p.std]||STD.mlit;
+  const base=p.elev+p.agl;
+  const fatoR=Math.max(def.fatoF*p.d,8)/2;
+  const saR=fatoR+Math.max(def.saOff,def.saF*p.d);
+  if(distM<=saR)return base;
+  return Math.min(base+(distM-saR)/p.slp,base+p.top);
+}
+
+/* ═══════════════════════════════════════════════════════
+   VERTIPORT
+   ═══════════════════════════════════════════════════════ */
+function addVP(lat,lng){
+  const id=uid(),n=vpList.length+1,label=`VP-${n}`;
+  const el=document.createElement('div');
+  el.style.cssText=`width:18px;height:18px;border-radius:3px;background:#9070e0;border:2px solid #c0a8ff;display:flex;align-items:center;justify-content:center;font-size:8px;color:#fff;font-weight:700`;
+  el.textContent=n;
+  const mkr=new mapboxgl.Marker({element:el}).setLngLat([lng,lat]).addTo(map);
+  vpList.push({id,lat,lng,label,mkr,visited:false});updateVPList();
+  log(`${label} 設置 (${lat.toFixed(4)},${lng.toFixed(4)})`,'ok');
+}
+function updateVPList(){
+  const b=document.getElementById('vp-list');
+  document.getElementById('vpN').textContent=vpList.length;
+  if(!vpList.length){b.innerHTML='<div class="hn">未設置</div>';return;}
+  b.innerHTML=vpList.map(v=>`
+    <div style="display:flex;align-items:center;gap:4px;font-size:9px;padding:2px 0;border-bottom:1px solid var(--bd)">
+      <span style="width:8px;height:8px;border-radius:2px;background:${v.visited?'#10b060':'#9070e0'};flex-shrink:0"></span>
+      ${v.label} ${v.visited?'✓':''}
+      <span style="font-size:8px;color:var(--tx3);font-family:var(--mono);margin-left:auto">(${v.lat.toFixed(4)},${v.lng.toFixed(4)})</span>
+    </div>`).join('');
+}
+
+/* ═══════════════════════════════════════════════════════
+   AIRCRAFT PRESET
+   ═══════════════════════════════════════════════════════ */
+function applyACType(){
+  const t=document.getElementById('ac-type').value;
+  const pr=AC_PRESET[t]||AC_PRESET.heli;
+  AP={...pr};
+  document.getElementById('ac-vne').value=pr.vne;
+  document.getElementById('ac-clb').value=pr.clb;
+  document.getElementById('ac-yaw').value=pr.yaw;
+  document.getElementById('ac-pitch').value=pr.pitchMax;
+  log(`機体タイプ: ${t} (Vne=${pr.vne}km/h)`,'i');
+}
+function readACParams(){
+  AP.vne=+document.getElementById('ac-vne').value;
+  AP.vneMs=AP.vne/3.6;
+  AP.clb=+document.getElementById('ac-clb').value;
+  AP.yaw=+document.getElementById('ac-yaw').value;
+  AP.pitchMax=+document.getElementById('ac-pitch').value;
+  applyFlightFeel(false);
+}
+
+/* ═══════════════════════════════════════════════════════
+   COCKPIT FLIGHT MODE
+   ═══════════════════════════════════════════════════════ */
+function toggleFly(){
+  flyOn=!flyOn;
+  const btn=document.getElementById('b-fly');
+  const cp=document.getElementById('cockpit');
+  if(flyOn){
+    btn.classList.add('act');btn.textContent='■ 終了[ESC]';
+    cp.classList.add('on');fst('飛行中');
+    readACParams();changeSpdMode();
+    initHeli();startFly();
+    document.querySelectorAll('.mapboxgl-ctrl').forEach(e=>e.style.opacity='0.15');
+    log(`飛行開始 機体:${document.getElementById('ac-type').value} Vne:${AP.vne}km/h`,'ok');
+    flightStartTime=Date.now();score=0;flightSec=0;
+    landingScore=0;gateScore=0;wasAirborne=false;landingTriggered=false;
+    pitchTrim=0;rollTrim=0;
+    try{bestScore=Math.max(bestScore,+(localStorage.getItem("eols14_best")||0));}catch(e){}
+    updateGamePanel();
+  }else{
+    btn.classList.remove('act');btn.textContent='🚁 飛行開始';
+    cp.classList.remove('on');fst('待機');stopFly();
+    if(flightStartTime&&(missionsCompleted>0||wasAirborne))setTimeout(showSessionResult14,700);
+    document.querySelectorAll('.mapboxgl-ctrl').forEach(e=>e.style.opacity='1');
+    log(`飛行終了 スコア:${score} OLS違反:${olsViolCount} MSA違反:${msaViolCount} 建物衝突:${bldHitCount} 地表衝突:${terHitCount}`,'w');
+    flightStartTime=null;
+  }
+}
+document.addEventListener('keydown',e=>{if(e.code==='Escape'&&flyOn)toggleFly();});
+
+function initHeli(){
+  const s=(START.lat!=null)?{lat:START.lat,lng:START.lng,label:'指定開始点'}
+        :(vpList[0]||{lat:35.68,lng:139.77});
+  H.lat=s.lat;H.lng=s.lng;
+  const ge=terrainElevAt(s.lat,s.lng);
+  H.gnd=(ge!=null)?ge:0;
+  H.alt=0; H.altMSL=H.gnd;            // v15: 地表に接地した状態から開始
+  H.hdg=0;H.pitch=0;H.roll=0;
+  H.spd=0;H.spdKmh=0;
+  H.phase='hover';H.trailC=[[H.lng,H.lat,H.alt]];
+  H.olsViol=false;H.msaViol=false;H.gEffect=false;
+  // v7: CTRL / VEL リセット
+  CTRL.desiredPitch=0;CTRL.desiredRoll=0;
+  CTRL.cyclicPitch=0;CTRL.cyclicRoll=0;
+  CTRL.pedal=0;CTRL.collective=PHY.HOVER_COL;
+  pitchTrim=0;rollTrim=0; // v14c
+  _mouseDX=0;_mouseDY=0;_mouseL=false;_mouseR=false;
+  VEL.x=0;VEL.y=0;VEL.z_ns=0;
+  // カメラリセット
+  CAM.lat=s.lat;CAM.lng=s.lng;CAM.alt=s.alt||50;CAM.bearing=0;CAM.pitch=60;
+  CAMS.init=false; // v15: スムーズカメラ状態をリセット
+  olsViolCount=0;msaViolCount=0;_prevOls=false;_prevMsa=false;
+  bldHitCount=0;terHitCount=0;_prevBldHit=false;H.bldHit=false;H.proxBld=999;_bldWarnUntil=0;
+  vpList.forEach(v=>v.visited=false);
+  if(H.marker)H.marker.remove();
+  const el=document.createElement('div');
+  el.style.cssText=`width:14px;height:14px;border-radius:50%;background:#f0c030;border:2px solid #fff;box-shadow:0 0 14px #f0c030;z-index:60;pointer-events:none`;
+  H.marker=new mapboxgl.Marker({element:el}).setLngLat([H.lng,H.lat]).addTo(map);
+  drawCockpitFrame();
+  log(`飛行開始: ${s.label||'開始地点'} (${H.lat.toFixed(4)},${H.lng.toFixed(4)})`,'ok');
+}
+
+function startFly(){
+  // v14d: mouse input — pointer lock for infinite movement
+  const mwEl=document.getElementById('mw');
+  if(mwEl&&mwEl.requestPointerLock){
+    mwEl.addEventListener('click',function _plReq(){
+      mwEl.requestPointerLock();
+      mwEl.removeEventListener('click',_plReq);
+    },{once:true});
+  }
+  document.addEventListener('pointerlockchange',function(){
+    _pointerLocked=!!(document.pointerLockElement||document.mozPointerLockElement);
+  });
+  document.addEventListener('mousemove',_onFlyMouseMove);
+  document.addEventListener('mousedown',_onFlyMouseDown);
+  document.addEventListener('mouseup',  _onFlyMouseUp);
+  document.addEventListener('contextmenu',_preventDefault);
+  // v15: FOVは一度だけ設定（毎フレームの内部transform書換はジッタ源）
+  try{
+    if(map&&map.transform){
+      if(typeof map.transform.fov!=='undefined')map.transform.fov=84;   // v15.1: 広視野
+      else if(typeof map.transform._fov!=='undefined')map.transform._fov=84*Math.PI/180;
+    }
+  }catch(e){}
+  // v15: カメラエンジンを一度だけ判定（毎フレームのfree⇔fallback切替を廃止）
+  try{
+    CAM_ENGINE=(typeof map.getFreeCameraOptions==='function'&&typeof map.setFreeCameraOptions==='function'
+      &&typeof map.getFreeCameraOptions().setPitchBearing==='function')?'free':'jump';
+  }catch(e){CAM_ENGINE='jump';}
+  log('カメラエンジン: '+(CAM_ENGINE==='free'?'FreeCamera':'標準'),'i');
+  flyLast=performance.now();
+  (function loop(){
+    if(!flyOn)return;
+    const now=performance.now(),dt=Math.min((now-flyLast)/1000,.05);
+    flyLast=now;_dt=dt;
+    heliPhysics(dt);
+    updateCamera();
+    renderHUD();
+    drawInstruments();
+    drawMinimap();
+    flyRAF=requestAnimationFrame(loop);
+  })();
+}
+function stopFly(){
+  // v14d: release mouse listeners + pointer lock
+  document.removeEventListener('mousemove',_onFlyMouseMove);
+  document.removeEventListener('mousedown',_onFlyMouseDown);
+  document.removeEventListener('mouseup',  _onFlyMouseUp);
+  document.removeEventListener('contextmenu',_preventDefault);
+  if(document.exitPointerLock)document.exitPointerLock();
+  _mouseDX=0;_mouseDY=0;_mouseL=false;_mouseR=false;
+  if(flyRAF)cancelAnimationFrame(flyRAF);
+  if(H.marker){H.marker.remove();H.marker=null;}
+  // 地図の傾き・フレームをリセット
+  const mapEl=document.getElementById('map');
+  if(mapEl){mapEl.style.transform='';mapEl.style.transition='';}
+  _dispRoll=0;_dispPitch=0;_lastMapRot=999;CAMS.init=false;
+  const cp=document.getElementById('cpframe');
+  if(cp)cp.style.transform='';
+  _camRoll=0;
+}
+
+
+/* ═══════════════════════════════════════════════════════
+   FLIGHT PHYSICS v15 — 地形追従・風・地面効果
+   ─────────────────────────────────────────────────────
+   添付ツール(evtol-desktop-v3)の物理モデルをMapbox上で再現。
+   ① サイクリック入力 → desiredPitch/Roll
+   ② CYCLIC_SMOOTH でスムージング（操舵ラグ）
+   ③ 傾き → 水平加速（TILT_ACCEL）
+   ④ H_DRAG / V_DRAG でドラッグ
+   ⑤ コレクティブ → 垂直（高度維持しやすい設計）
+   ⑥ ヨー = Q/E ペダル直接操作
+   ═══════════════════════════════════════════════════════ */
+
+const PHY={
+  // v12 speed tuning for OLS educational game.
+  // Forward: 250 km/h in 30 s => 2.3148 m/s².
+  // Rear/side: same acceleration, 60 km/h cap.
+  // Climb: 500–1500 ft/min => 2.54–7.62 m/s. Vertical drag is disabled in target-rate mode.
+  GRAVITY:0.012, H_DRAG:0.996, V_DRAG:1.000, GROUND_FRIC:0.72,
+  TILT_ACCEL:18.0, THRUST_MAX:9.0, YAW_RATE:15, // v14c: tilt-driven physics
+  FWD_DRAG_K:0.9978, LAT_DRAG_K:0.9970, TRIM_RATE:0.85,
+  CYCLIC_SMOOTH:0.115, CYCLIC_MAX_P:0.52, CYCLIC_MAX_R:0.52,
+  HOVER_COL:0.30, COL_RATE:0.85, COL_RATE_F:1.35,
+  FWD_MAX_KMH:250, SIDE_MAX_KMH:60, REV_MAX_KMH:60,
+  FWD_ACCEL:250/3.6/10, SIDE_ACCEL:250/3.6/18, // v14: faster response
+  CLIMB_MIN_MS:500*0.00508, CLIMB_MAX_MS:1500*0.00508, DESCENT_MAX_MS:-1000*0.00508,
+  VERT_ACCEL:12.0, // v14d: faster altitude response
+  VS_UP_MAX:1500*0.00508, VS_DN_MAX:-10.16, // v14b: 2000 ft/min
+};
+const CTRL={desiredPitch:0,desiredRoll:0,cyclicPitch:0,cyclicRoll:0,pedal:0,collective:0.30};
+const VEL={x:0,y:0,z_ns:0};
+const CAM={lat:35.68,lng:139.77,alt:50,bearing:0,pitch:60};
+let CAM_FREE_OK=false; // true when Mapbox FreeCamera cockpit positioning succeeds
+
+
+function wrap180(a){
+  while(a>180)a-=360;
+  while(a<-180)a+=360;
+  return a;
+}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+function changeCameraMode(){
+  const el=document.getElementById('camMode');
+  cameraMode=el?el.value:'cockpit';
+  const cb=document.getElementById('cam-badge');
+  const label={cockpit:'PILOT POV',chase:'CHASE CAM',top:'TOP VIEW'}[cameraMode]||cameraMode;
+  if(cb)cb.textContent='CAM: '+label;
+  const ret=document.getElementById('fp-reticle');
+  const note=document.getElementById('fp-horizon-note');
+  const on=cameraMode==='cockpit';
+  if(ret)ret.style.display=on?'block':'none';
+  if(note)note.style.display=on?'block':'none';
+  if(H.marker){try{H.marker.getElement().style.display=on?'none':'block';}catch(e){}}
+  log('Camera mode: '+label,'i');
+}
+function cycleCamMode(){
+  const order=['cockpit','chase','top'];
+  const i=order.indexOf(cameraMode);
+  cameraMode=order[(i+1)%order.length];
+  const el=document.getElementById('camMode');
+  if(el)el.value=cameraMode;
+  changeCameraMode();
+}
+function altToZoomFP(altM,spdKmh){
+  const z=17.25-Math.log2(Math.max(1,altM)/6+1)*0.95-Math.min(0.55,(spdKmh||0)/420);
+  return clamp(z,12.7,17.4);
+}
+function altToZoomTop(altM){
+  return clamp(15.8-Math.log2(Math.max(1,altM)/10+1)*0.65,12.2,16.0);
+}
+
+/* ── v14d: mouse event handlers ── */
+function _onFlyMouseMove(e){
+  if(!flyOn)return;
+  _mouseDX += e.movementX||0;
+  _mouseDY += e.movementY||0;
+}
+function _onFlyMouseDown(e){
+  if(!flyOn)return;
+  if(e.button===0)_mouseL=true;
+  if(e.button===2)_mouseR=true;
+}
+function _onFlyMouseUp(e){
+  if(e.button===0)_mouseL=false;
+  if(e.button===2)_mouseR=false;
+}
+function _preventDefault(e){e.preventDefault();}
+
+function heliPhysics(dt){
+  const K=KEYS;
+  const fast=K.ShiftLeft||K.ShiftRight;
+  const colRate=fast?PHY.COL_RATE_F:PHY.COL_RATE;
+  if(K.ArrowUp)  CTRL.collective=Math.min(1.0,CTRL.collective+colRate*dt);
+  if(K.ArrowDown)CTRL.collective=Math.max(0.02,CTRL.collective-colRate*dt);
+
+  if(K.KeyF||K.Space){
+    // Hover brake: bleed velocity + reset trim toward 0
+    VEL.x*=Math.exp(-3.5*dt);VEL.y*=Math.exp(-1.5*dt);VEL.z_ns*=Math.exp(-3.5*dt);
+    pitchTrim*=Math.exp(-3.5*dt);rollTrim*=Math.exp(-3.5*dt);
+    CTRL.cyclicPitch*=Math.exp(-3.5*dt);CTRL.cyclicRoll*=Math.exp(-3.5*dt);
+    CTRL.collective+=(PHY.HOVER_COL-CTRL.collective)*0.18;
+    H.phase='hover';
+  }
+
+  const inYaw=K.KeyQ?-1:K.KeyE?1:0;
+  CTRL.pedal+=(inYaw-CTRL.pedal)*Math.min(1,dt/0.08);
+
+  /* ─── v14c: TRIM-BASED CYCLIC PHYSICS ───────────────────────
+     W/S  : ピッチトリム累積 (押すたびに徐々に変化・離しても維持)
+     A/D  : ロールトリム累積 (バンク → 協調旋回)
+     Q/E  : ペダル = ヨー直接入力 (ホバリング旋回・スリップ補正)
+     ↑/↓  : コレクティブ (高度)
+     F/SPC: ホバーブレーキ (全トリムを0へ減衰)
+  ──────────────────────────────────────────────────────────── */
+  const TRIM_RATE = PHY.TRIM_RATE || 0.85; // per second
+
+  // v14d: mouse delta → trim (accumulated movement, applied once per frame)
+  if(_mouseDX!==0||_mouseDY!==0){
+    pitchTrim = clamp(pitchTrim + _mouseDY*MOUSE_PITCH_SENS, -1, 1);
+    rollTrim  = clamp(rollTrim  + _mouseDX*MOUSE_ROLL_SENS,  -1, 1);
+    _mouseDX=0; _mouseDY=0;
+  }
+  // Mouse buttons → pedal yaw (same as Q/E)
+  if(_mouseL) CTRL.pedal = clamp(CTRL.pedal - TRIM_RATE*dt*0.7, -1, 0);
+  if(_mouseR) CTRL.pedal = clamp(CTRL.pedal + TRIM_RATE*dt*0.7, 0,  1);
+
+  // W/S: pitch trim (持続入力で徐々に変化、離しても現在値を保持)
+  if(K.KeyW) pitchTrim = clamp(pitchTrim - TRIM_RATE*dt, -1, 1);
+  if(K.KeyS) pitchTrim = clamp(pitchTrim + TRIM_RATE*dt, -1, 1);
+
+  // A/D: roll trim (バンク角トリム)
+  if(K.KeyA) rollTrim = clamp(rollTrim - TRIM_RATE*dt, -1, 1);
+  if(K.KeyD) rollTrim = clamp(rollTrim + TRIM_RATE*dt, -1, 1);
+
+  // Trim → desired cyclic attitude
+  CTRL.desiredPitch = pitchTrim * PHY.CYCLIC_MAX_P;
+  CTRL.desiredRoll  = rollTrim  * PHY.CYCLIC_MAX_R;
+
+  // Cyclic smoothing (操舵ラグ / 機体慣性)
+  // v15: フレームレート非依存の一次遅れ（60fps時に従来と同一の応答）
+  const _ca=1-Math.pow(1-PHY.CYCLIC_SMOOTH, dt*60);
+  CTRL.cyclicPitch += (CTRL.desiredPitch - CTRL.cyclicPitch) * _ca;
+  CTRL.cyclicRoll  += (CTRL.desiredRoll  - CTRL.cyclicRoll ) * _ca;
+
+  const onGround = H.alt<=0.35;
+  const hdgR = H.hdg*D2R, sinH=Math.sin(hdgR), cosH=Math.cos(hdgR);
+
+  /* ── v15: 風モデル（定常風 + OUガスト）────────────────────
+     気象学的風向(FROM)。ドラッグは対気速度に作用させるため、
+     ホバー中は風下へ流され、巡航では偏流修正が必要になる。 */
+  if(WIND.gustSig>0){
+    const tauG=3.5, sig=WIND.gustSig;
+    WIND.gx+=(-WIND.gx/tauG)*dt+sig*Math.sqrt(dt)*gaussRand();
+    WIND.gy+=(-WIND.gy/tauG)*dt+sig*Math.sqrt(dt)*gaussRand();
+    WIND.gx=clamp(WIND.gx,-sig*3,sig*3);WIND.gy=clamp(WIND.gy,-sig*3,sig*3);
+  }else{WIND.gx*=Math.exp(-dt);WIND.gy*=Math.exp(-dt);}
+  const wTo=(WIND.dirDeg+180)*D2R;
+  const wX=Math.sin(wTo)*WIND.spd+WIND.gx;   // East成分 (吹いていく方向)
+  const wY=Math.cos(wTo)*WIND.spd+WIND.gy;   // North成分
+
+  if(!onGround){
+    let vFwd = VEL.x*sinH + VEL.z_ns*cosH;
+    let vLat = VEL.x*cosH - VEL.z_ns*sinH;
+    const wFwd = wX*sinH + wY*cosH;          // 風の機体軸成分
+    const wLat = wX*cosH - wY*sinH;
+
+    // v15.1: 高速モード — 前進軸のみ上限と推力を×SPD_MODE
+    // (横・後退は姿勢制御系の想定上限のまま。ドラッグ平衡が
+    //  フルトリムでほぼ fwdMax に一致するよう推力も同率スケール)
+    const fwdMax  = (AP.vne||250)*SPD_MODE/3.6;
+    const revMax  = (PHY.REV_MAX_KMH||60)/3.6;
+    const sideMax = (PHY.SIDE_MAX_KMH||60)/3.6;
+
+    // ── Tilt-driven acceleration ──────────────────────────────
+    const TA = PHY.TILT_ACCEL || 18.0;
+    vFwd += (-CTRL.cyclicPitch) * TA * SPD_MODE * dt;
+    vLat += ( CTRL.cyclicRoll)  * TA * dt;
+
+    // ── v15: 対気速度ベースのドラッグ ──────────────────────
+    // v_new = wind + (v - wind)·K^(60·dt)。定常解は「風に流される」状態。
+    const kF=Math.pow(PHY.FWD_DRAG_K||0.9978, dt*60);
+    const kL=Math.pow(PHY.LAT_DRAG_K||0.9970, dt*60);
+    vFwd = wFwd + (vFwd - wFwd)*kF;
+    vLat = wLat + (vLat - wLat)*kL;
+
+    vFwd = clamp(vFwd, -revMax, fwdMax);
+    vLat = clamp(vLat, -sideMax, sideMax);
+
+    VEL.x    = vFwd*sinH + vLat*cosH;
+    VEL.z_ns = vFwd*cosH - vLat*sinH;
+
+    // ── Bank-to-yaw: 協調旋回 ───────────────────────────────
+    const bankRad    = CTRL.cyclicRoll;
+    const BANK_TURN_K = 1.8;
+    const spdFactor  = 0.5 + 0.5 * Math.min(1, H.spdKmh / 80);
+    const autoTurn   = bankRad * BANK_TURN_K * spdFactor;
+
+    const pedalYaw = CTRL.pedal * (AP.yaw||PHY.YAW_RATE||15);
+
+    // ── v15: 風見安定 (ヘリ風フィールのみ、微弱) ─────────────
+    let wv=0;
+    if((PHY.WV||0)>0 && H.spdKmh>15){
+      const track=Math.atan2(VEL.x,VEL.z_ns)*R2D;
+      wv=clamp(wrap180(track-H.hdg),-30,30)*(PHY.WV*0.045)*Math.min(1,(H.spdKmh-15)/60);
+    }
+
+    H.hdg = (H.hdg + (autoTurn*R2D + pedalYaw + wv)*dt + 360) % 360;
+
+    // ── 垂直速度: コレクティブ → 目標VS (eVTOL SAS風) ───────
+    const colNorm=clamp((CTRL.collective-PHY.HOVER_COL)/(1.0-PHY.HOVER_COL),-1,1);
+    let targetVy=0;
+    if(colNorm>0.03){
+      targetVy=(PHY.CLIMB_MIN_MS||2.54)+colNorm*((AP.clb||PHY.CLIMB_MAX_MS||7.62)-(PHY.CLIMB_MIN_MS||2.54));
+    }else if(colNorm<-0.03){
+      const colMinNeg=clamp((PHY.HOVER_COL-CTRL.collective)/(PHY.HOVER_COL-0.02),0,1);
+      const spdFrac=Math.min(1,H.spdKmh/((AP.vne||250)*SPD_MODE));
+      const maxDesc=5.08+spdFrac*5.08;
+      targetVy=-Math.pow(colMinNeg,0.6)*maxDesc;
+      // ── v15: 地面効果クッション (AGL<8mで降下率を漸減) ────
+      if(H.alt<8){const geF=0.35+0.65*clamp(H.alt/8,0,1);targetVy*=geF;}
+    }
+    const maxDv=(PHY.VERT_ACCEL||8.0)*dt;
+    VEL.y+=clamp(targetVy-VEL.y,-maxDv,maxDv);
+  } else {
+    // v15: 接地帯(AGL≤0.35m)へ降下進入した瞬間に沈下率を保持したまま着陸評価
+    if(VEL.y<-0.05 && wasAirborne && !landingTriggered){
+      // v15.2: 高速/高沈下率での地表接触は衝突として発報 (CFIT/ハードランディング)
+      if(H.spdKmh>40||VEL.y<-4.0){
+        terHitCount++;
+        triggerCrashAlert('地表衝突! 接地速度'+Math.round(H.spdKmh)+'km/h 沈下率'+Math.abs(VEL.y).toFixed(1)+'m/s','red');
+      }
+      evaluateLanding14();
+    }
+    if(K.ArrowUp||CTRL.collective>PHY.HOVER_COL+0.05){
+      const colNorm=clamp((CTRL.collective-PHY.HOVER_COL)/(1.0-PHY.HOVER_COL),0,1);
+      VEL.y=(PHY.CLIMB_MIN_MS||2.54)+colNorm*((AP.clb||PHY.CLIMB_MAX_MS||7.62)-(PHY.CLIMB_MIN_MS||2.54));
+    }else{
+      // 脚が地面に落ち着くまで滑らかに沈める（0.3m宙吊りバグの修正）
+      VEL.y=0;
+      H.altMSL+=(H.gnd-H.altMSL)*smAlpha(dt,0.12);
+      if(H.altMSL-H.gnd<0.05)H.altMSL=H.gnd;
+    }
+    const f60=dt*60;
+    VEL.x   *=Math.pow(PHY.GROUND_FRIC,f60);
+    VEL.z_ns*=Math.pow(PHY.GROUND_FRIC,f60);
+  }
+
+  // 地上ペダルヨー
+  if(onGround) H.hdg=(H.hdg+CTRL.pedal*(AP.yaw||15)*dt*0.6+360)%360;
+
+  VEL.y=Math.max(PHY.VS_DN_MAX||-10.16,Math.min(AP.clb||PHY.VS_UP_MAX||7.62,VEL.y));
+
+  /* ── v15: 地形追従の高度モデル ──────────────────────────
+     物理真値: H.altMSL (海抜)。地表標高 H.gnd を毎フレーム参照し、
+     H.alt(AGL) = altMSL - gnd。接地判定・着陸評価は地形基準。 */
+  const hSpd=Math.hypot(VEL.x,VEL.z_ns);
+  H.lat+=VEL.z_ns*dt/RE*R2D;
+  H.lng+=VEL.x   *dt/(RE*Math.cos(H.lat*D2R))*R2D;
+
+  const geNow=terrainElevAt(H.lat,H.lng);
+  if(geNow!=null){
+    // 地形タイル解像度由来の段差を軽く平滑化（接地中はほぼ即追従）
+    const gTau=onGround?0.05:0.30;
+    H.gnd+=(geNow-H.gnd)*smAlpha(dt,gTau);
+  }
+  H.altMSL+=VEL.y*dt;
+  H.alt=H.altMSL-H.gnd;
+  if(H.alt<=0){
+    H.alt=0;H.altMSL=H.gnd;
+    if(wasAirborne&&!landingTriggered){
+      // v15.2: 高沈下率で接地帯(0.35m)を1フレームで貫通した場合もCFIT発報
+      if(H.spdKmh>40||VEL.y<-4.0){
+        terHitCount++;
+        triggerCrashAlert('地表衝突! 接地速度'+Math.round(H.spdKmh)+'km/h 沈下率'+Math.abs(Math.min(VEL.y,0)).toFixed(1)+'m/s','red');
+      }
+      evaluateLanding14();
+    }
+    VEL.y=Math.max(0,VEL.y);
+  }
+  if(H.alt>1.0)wasAirborne=true;
+
+  H.spd=hSpd;H.spdKmh=hSpd*3.6;
+  H.vz=VEL.y; // v15: VSI表示用に反映（従来は未更新のバグ）
+  H.pitch  =CTRL.cyclicPitch*R2D;
+  H.roll   =CTRL.cyclicRoll *R2D;
+  H.cycPitch=pitchTrim;  // normalized -1..1 for stick display
+  H.cycRoll =rollTrim;
+  H.pedal=CTRL.pedal;
+  H.collective=CTRL.collective;
+  _camRoll=H.roll;
+
+  if(H.alt>0.5){
+    if(H.spdKmh<8)H.phase='hover';
+    else if(H.spdKmh<50)H.phase='climbout';
+    else H.phase='cruise';
+    if(VEL.y<-1.5)H.phase='descend';
+    if(VEL.y>1&&H.alt<30)H.phase='takeoff';
+  }else H.phase='parked';
+
+  checkMSA();
+  H.olsViol=false;H.olsViolTxt='';
+  olsList.forEach(o=>{
+    const d=hav(H.lat,H.lng,o.lat,o.lng);
+    const oh=olsHAt(d,o.p);   // oh = 標高(elev)+設置高+勾配 → MSL基準
+    if(H.altMSL>oh+5){H.olsViol=true;H.olsViolTxt=`OLS-${o.id}: MSL${Math.round(H.altMSL)}m>${Math.round(oh)}m`;}
+  });
+  if(H.olsViol&&!_prevOls){
+    olsViolCount++;
+    // v15.2: 制限表面「衝突」= 面の貫通イベント。琥珀フラッシュで明示。
+    triggerCrashAlert('制限表面 貫通: '+H.olsViolTxt,'amber');
+  }
+  _prevOls=H.olsViol;
+  computeProximity();checkVPProximity();
+  // v15.2: 建物衝突 (立上りエッジで発報 + 運動エネルギー減衰)
+  if(H.bldHit&&!_prevBldHit){
+    bldHitCount++;
+    triggerCrashAlert('建物衝突! AGL'+Math.round(H.alt)+'m — 屋根高より低高度','red');
+    VEL.x*=0.15;VEL.z_ns*=0.15;VEL.y=Math.min(VEL.y,0); // 衝突による急減速
+  }
+  _prevBldHit=!!H.bldHit;
+
+  if(H.marker)H.marker.setLngLat([H.lng,H.lat]);
+  H.trailC.push([H.lng,H.lat,H.alt]);
+  if(H.trailC.length>600)H.trailC.shift();
+  const ts=map.getSource('ply-trail');
+  if(ts)ts.setData({type:'Feature',geometry:{type:'LineString',coordinates:H.trailC}});
+
+  if(flightStartTime){
+    flightSec=Math.floor((Date.now()-flightStartTime)/1000);
+    score=computeScore100();
+    if(flightSec%30===0&&flightSec>0)updateGamePanel();
+  }
+  if(Math.floor(flyLast/100)%3===0)updatePlayerPanel();
+}
+
+/* ═══════════════════════════════════════════════════════
+   CAMERA v15 — 地形整合・単一経路・dt基準平滑化
+   ─────────────────────────────────────────────────────
+   低高度ジッタの根本原因と対策:
+   1) カメラ高度が描画地形(DEM)を下回り、Mapbox内部の
+      地形上クランプと毎フレーム競合 → カメラ地点の地形標高で下限拘束
+   2) lookAtPoint(標高0点注視)がpitch85°クランプでスナップ
+      → setPitchBearing(≤82°)へ変更
+   3) FreeCamera⇔jumpToのフレーム毎切替 → 起動時に一度だけ判定
+   4) フレームレート依存の平滑化係数 → 1-exp(-dt/τ)へ統一
+   ═══════════════════════════════════════════════════════ */
+function updateCamera(){
+  if(!map||!flyOn)return;
+  const dt=_dt||0.016;
+  const mode=cameraMode||'cockpit';
+  try{
+    /* ═══ v15 カメラ ═══════════════════════════════════════
+       低高度ガタつきの根本対策:
+       ① FreeCamera単独運用（毎フレームのfree⇔jumpTo切替を廃止）
+       ② カメラ位置の高度をカメラ地点の地形標高+2.5mで下限拘束
+          → Mapbox内部の「地形上へのクランプ」との毎フレーム競合を解消
+       ③ lookAtPoint廃止 → setPitchBearing(pitch≤82°)でpitchクランプ
+          由来のスナップを排除
+       ④ 全平滑化を dt基準の一次遅れに統一（FPS非依存）
+    ═══════════════════════════════════════════════════════ */
+
+    // ── モード別カメラ目標 ──
+    let backM, upM, tgtPitch, tgtBearing;
+    if(mode==='cockpit'){
+      /* v15.1: 視線は常に水平線基準。
+         機首ピッチへの連動を0.9→0.22に弱め、ノーズダウン巡航でも
+         遠方目標が視界上部に残る（実機の「姿勢は計器・AHIで読む、
+         視線は進行方向」というパイロット視点に一致）。 */
+      backM = 9 + H.spd*0.10;
+      upM   = 4.2 + H.spd*0.045;
+      tgtPitch  = clamp(80.5 + H.pitch*0.22, 72, 82.5);
+      tgtBearing= H.hdg + _dispRoll*0.05;
+    }else if(mode==='chase'){
+      backM = clamp(45 + H.spd*1.1, 45, 260*SPD_MODE);
+      upM   = 14 + H.spd*0.28;
+      tgtPitch  = clamp(64 + H.pitch*0.4, 42, 78);
+      tgtBearing= H.hdg;
+    }else{ // top
+      backM = 0.1;
+      upM   = clamp(260 + H.spd*2.0, 260, 900);
+      tgtPitch  = 18;
+      tgtBearing= 0;
+    }
+
+    // ── カメラ目標位置（機体後方 backM・上方 upM）──
+    const camLL = dest(H.lat,H.lng,(tgtBearing+180)%360, backM);
+    let tgtAltMSL = H.altMSL + upM;
+
+    // ② カメラ地点の地形標高で下限拘束（Mapboxの内部クランプに先回り）
+    const gCam = terrainElevAt(camLL.lat,camLL.lng);
+    const gFloor = (gCam!=null?gCam:H.gnd) + 2.5;
+    if(tgtAltMSL < gFloor) tgtAltMSL = gFloor;
+
+    // ── dt基準の平滑化 ──
+    if(!CAMS.init){
+      CAMS.lat=camLL.lat;CAMS.lng=camLL.lng;CAMS.altMSL=tgtAltMSL;
+      CAMS.bearing=tgtBearing;CAMS.pitch=tgtPitch;CAMS.init=true;
+    }
+    const tauPos = mode==='cockpit'?0.07 : mode==='chase'?0.22 : 0.35;
+    const tauAtt = mode==='cockpit'?0.11 : 0.20;
+    const aP=smAlpha(dt,tauPos), aA=smAlpha(dt,tauAtt);
+    CAMS.lat   += (camLL.lat - CAMS.lat)*aP;
+    CAMS.lng   += (camLL.lng - CAMS.lng)*aP;
+    CAMS.altMSL+= (tgtAltMSL - CAMS.altMSL)*aP;
+    CAMS.bearing=(CAMS.bearing + wrap180(tgtBearing-CAMS.bearing)*aA + 360)%360;
+    CAMS.pitch += (tgtPitch - CAMS.pitch)*aA;
+
+    // 平滑化後にも下限を再適用（地形急変時の食い込み防止）
+    if(CAMS.altMSL < gFloor) CAMS.altMSL = gFloor;
+
+    if(CAM_ENGINE==='free'){
+      const fc=map.getFreeCameraOptions();
+      fc.position=mapboxgl.MercatorCoordinate.fromLngLat(
+        {lng:CAMS.lng,lat:CAMS.lat}, CAMS.altMSL);
+      fc.setPitchBearing(clamp(CAMS.pitch,0,82), CAMS.bearing);
+      map.setFreeCameraOptions(fc);
+    }else{
+      // フォールバック（FreeCamera非対応環境）: 単一経路のjumpTo
+      const aglCam=Math.max(8, CAMS.altMSL - (gCam!=null?gCam:H.gnd));
+      const z=mode==='top' ? altToZoomTop(aglCam)
+            : clamp(17.3-Math.log2(aglCam/6+1)*0.95-Math.min(0.55,H.spdKmh/420),12.6,17.4);
+      map.jumpTo({center:[H.lng,H.lat],bearing:CAMS.bearing,
+        pitch:clamp(CAMS.pitch,0,82),zoom:z});
+    }
+  }catch(e){}
+}
+
+function altToZoom(altM){
+  const z=16.8-Math.log2(Math.max(1,altM)/3+1)*1.4;
+  return Math.max(11,Math.min(17.5,z));
+}
+
+
+/* ═══════════════════════════════════════════════════════
+   HUD RENDERING — 機体姿勢視覚化
+   ─────────────────────────────────────────────────────
+   ロール表現: 地図全体 (#map) を機体ロール角で傾ける
+   → 世界が傾いて見える = バンクの体感
+   ピッチ表現: AHI天地区分 + フレーム上下オフセット
+   ヨー表現: カメラbearing = 機首方位 (updateCamera内)
+   ═══════════════════════════════════════════════════════ */
+function renderHUD(){
+  document.getElementById('hspd').textContent=Math.round(H.spdKmh);
+  document.getElementById('halt').textContent=Math.round(H.alt);
+  document.getElementById('phase-badge').textContent=PHASE_JP[H.phase]||H.phase;
+  const st=document.getElementById('score-txt');if(st)st.textContent='スコア: '+score;
+  const ft=document.getElementById('flight-time-txt');if(ft){const mm=Math.floor(flightSec/60),ss=flightSec%60;ft.textContent='飛行時間: '+mm+':'+String(ss).padStart(2,'0');}
+  const mt=document.getElementById('mission-txt');if(mt){const nt=nextTarget&&nextTarget();mt.textContent=nt?'次目標: '+nt.label:'ミッション完了';}
+  updateTrainingHUD();
+
+  /* ── OLS warning ── */
+  const ow=document.getElementById('ols-warn');
+  if(H.olsViol){ow.classList.add('on');document.getElementById('ols-warn-txt').textContent=H.olsViolTxt;}
+  else ow.classList.remove('on');
+
+  /* ── MSA warning ── */
+  const mw=document.getElementById('msa-warn');
+  if(H.msaViol){mw.classList.add('on');document.getElementById('msa-warn-txt').textContent=H.msaTxt||'最低安全高度違反';}
+  else mw.classList.remove('on');
+
+  /* ── 近接距離 ── */
+  const pb=document.getElementById('prox-bld');
+  const bldClr=H.proxBld<0?'#ff3030':H.proxBld<15?'#e09818':'#10b060';
+  pb.style.color=bldClr;
+  pb.textContent=H.proxBld<900?`建物余裕 ${H.proxBld}m`:'建物 クリア';
+  // v15.2: 衝突バナーの時限消灯
+  if(_bldWarnUntil&&performance.now()>_bldWarnUntil){
+    const bw=document.getElementById('bld-warn');if(bw)bw.classList.remove('on');
+    _bldWarnUntil=0;
+  }
+  document.getElementById('prox-ter').textContent=`AGL ${Math.round(H.alt)}m | 標高 ${Math.round(H.gnd)}m`+(WIND.spd>0?` | 風 ${WIND.dirDeg}°/${Math.round(Math.hypot(WIND.gx,WIND.gy)+WIND.spd)}m/s`:'');
+
+  /* ── Pilot POVではMapboxに不足するロール感をDOM側で補う ── */
+  /* v15: ロール演出の再設計
+     - translateY(ピッチ連動の縦揺れ)を廃止 → ピッチはカメラpitch側で表現
+     - dt基準の平滑化 + 0.02°未満の変化はDOM更新をスキップ（再ラスタ抑制） */
+  const roll = _camRoll;
+  const mapEl = document.getElementById('map');
+  if(mapEl){
+    if((cameraMode||'cockpit')==='cockpit'){
+      const aR=smAlpha(_dt||0.016,0.18);
+      _dispRoll  += (roll    - _dispRoll)  * aR;
+      _dispPitch += (H.pitch - _dispPitch) * aR;
+      // v15.1: ロール角±12°/scale1.16に縮小 → 実効視野を拡大
+      const r  = clamp(-_dispRoll*0.38, -12, 12);
+      const rq = Math.round(r*100)/100;
+      if(Math.abs(rq-_lastMapRot)>=0.02){
+        mapEl.style.transition='none';
+        mapEl.style.transform='rotate('+rq+'deg) scale(1.16)';
+        _lastMapRot=rq;
+      }
+    }else if(_lastMapRot!==999){
+      mapEl.style.transform='';
+      mapEl.style.transition='';
+      _dispRoll=0; _dispPitch=0; _lastMapRot=999;
+    }
+  }
+
+  /* ── 大型 AHI ── */
+  const pitchShift = _dispPitch * 3.2; // use smoothed value
+  const ahiSky = document.getElementById('ahi-sky');
+  if(ahiSky){
+    ahiSky.style.cssText =
+      `position:absolute;left:-20%;width:140%;height:200%;`+
+      `transform-origin:50% ${50 - pitchShift*0.3}%;`+
+      `transform:rotate(${roll}deg) translateY(${pitchShift}px);`+
+      `background:linear-gradient(180deg,`+
+      `#061d3a 0%,#0a2a50 42%,#1040a0 49%,`+
+      `#c06820 51%,#5a2808 58%,#200a04 100%)`;
+  }
+
+  /* ── コックピットフレームはロール傾きのみ ── */
+  const cp = document.getElementById('cpframe');
+  if(cp){
+    cp.style.transform = `rotate(${-roll * 0.18}deg)`;
+    cp.style.transformOrigin = '50% 42%';
+  }
+
+  /* ── VSI (VEL.y を使用) ── */
+  const vsiMax = 15, vsiH = 120;
+  const vsiVal = typeof VEL!=='undefined'?VEL.y:0;
+  const frac = Math.max(-1, Math.min(1, vsiVal / vsiMax));
+  const fillH = Math.abs(frac) * vsiH / 2;
+  document.getElementById('vsi-fill').style.cssText =
+    `position:absolute;left:2px;right:2px;border-radius:1px;`+
+    `background:${H.vz>=0?'#10b060':'#d83838'};`+
+    `top:${frac>=0?Math.round(vsiH/2-fillH)+'px':'50%'};`+
+    `bottom:${frac<0?Math.round(vsiH/2-fillH)+'px':'50%'}`;
+  document.getElementById('vsi-txt').textContent =
+    `${vsiVal>=0?'+':''}${vsiVal.toFixed(1)}\nm/s`;
+
+  drawHdgStrip(H.hdg);
+  updateApprStrip14();updateLiveScore14();updateMouseJoy14();
+
+  /* ── スコア ── */
+  if(flightStartTime){
+    const m = Math.floor(flightSec/60), s2 = flightSec%60;
+    document.getElementById('flight-time-txt').textContent =
+      `飛行時間: ${m}:${s2.toString().padStart(2,'0')}`;
+    document.getElementById('score-txt').textContent = `スコア: ${score}`;
+  }
+}
+
+function drawHdgStrip(hdg){
+  const cv=document.getElementById('hdg-cv');if(!cv)return;
+  const W=cv.width,H2=cv.height,ctx=cv.getContext('2d');
+  ctx.clearRect(0,0,W,H2);
+  const PX=3.5;
+  ctx.font='bold 8px monospace';
+  for(let d=-45;d<=45;d++){
+    const deg=((Math.round(hdg)+d)+3600)%360;
+    const px=W/2+d*PX;if(px<2||px>W-2)continue;
+    if(deg%10===0){
+      ctx.fillStyle=deg%30===0?'#a0c0d8':'#2a4860';
+      ctx.fillRect(px,0,1,deg%30===0?H2:H2*.35);
+      if(deg%30===0){
+        const lbl=deg===0?'N':deg===90?'E':deg===180?'S':deg===270?'W':('0'+deg).slice(-3);
+        ctx.fillStyle='#a0c0d8';ctx.textAlign='center';ctx.fillText(lbl,px,H2-2);
+      }
+    }
+  }
+  ctx.fillStyle='#f0c030';ctx.fillRect(W/2-1,0,2,H2);
+}
+
+/* ═══════════════════════════════════════════════════════
+   INSTRUMENT DIALS
+   ═══════════════════════════════════════════════════════ */
+function drawInstruments(){
+  drawAHIdial('ahi-dial',H.pitch,H.roll);
+  drawDial('asi-dial',H.spdKmh,0,(AP.vne||300)*SPD_MODE,'km/h','#f0c030',0);
+  drawDial('alt-dial',H.alt,0,1500,'m','#18c0e8',0);
+  drawDial('vsi-dial',typeof VEL!=='undefined'?VEL.y:0,-15,20,'m/s','#10b060',0,true);
+  drawHIDial('hi-dial',H.hdg);
+  drawStick();drawCollective();drawPedals();drawScoreGauge14();
+}
+
+function drawAHIdial(id,pitch,roll){
+  const cv=document.getElementById(id);if(!cv)return;
+  const W=cv.width,H2=cv.height,ctx=cv.getContext('2d');
+  ctx.clearRect(0,0,W,H2);
+  const cx=W/2,cy=H2/2,r=W/2-3;
+  ctx.save();ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.clip();
+  ctx.translate(cx,cy);ctx.rotate(roll*D2R);ctx.translate(-cx,-cy);
+  const pp=pitch*(r/30);
+  ctx.fillStyle='#0a2848';ctx.fillRect(0,0,W,cy+pp);
+  ctx.fillStyle='#3c1808';ctx.fillRect(0,cy+pp,W,H2);
+  ctx.strokeStyle='rgba(255,255,255,.5)';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(0,cy+pp);ctx.lineTo(W,cy+pp);ctx.stroke();
+  for(let p=-30;p<=30;p+=10){if(!p)continue;
+    const py=cy+pp-p*(r/30);
+    ctx.beginPath();ctx.moveTo(cx-18,py);ctx.lineTo(cx+18,py);
+    ctx.strokeStyle='rgba(255,255,255,.35)';ctx.lineWidth=1;ctx.stroke();
+  }
+  ctx.restore();
+  ctx.strokeStyle='#f0c030';ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(cx-22,cy);ctx.lineTo(cx-8,cy);ctx.moveTo(cx+8,cy);ctx.lineTo(cx+22,cy);ctx.stroke();
+  ctx.beginPath();ctx.arc(cx,cy,3,0,Math.PI*2);ctx.fillStyle='#f0c030';ctx.fill();
+  ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.strokeStyle='rgba(24,192,232,.2)';ctx.lineWidth=1.5;ctx.stroke();
+}
+
+function drawDial(id,val,min,max,unit,col,rollDeg=0,centre=false){
+  const cv=document.getElementById(id);if(!cv)return;
+  const W=cv.width,H2=cv.height,ctx=cv.getContext('2d');
+  ctx.clearRect(0,0,W,H2);
+  const cx=W/2,cy=H2/2,r=W/2-3;
+  const g=ctx.createRadialGradient(cx-r*.3,cy-r*.3,r*.05,cx,cy,r);
+  g.addColorStop(0,'#1a2e40');g.addColorStop(1,'#050a12');
+  ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.fillStyle=g;ctx.fill();
+  ctx.strokeStyle='rgba(24,192,232,.2)';ctx.lineWidth=1.5;ctx.stroke();
+  const range=max-min;
+  const sA=-225*D2R,sw=270*D2R;
+  const nT=12;
+  for(let i=0;i<=nT;i++){
+    const a=sA+sw*i/nT,in2=r-9,out2=r-2;
+    ctx.beginPath();ctx.moveTo(cx+Math.cos(a)*in2,cy+Math.sin(a)*in2);ctx.lineTo(cx+Math.cos(a)*out2,cy+Math.sin(a)*out2);
+    ctx.strokeStyle=i%3===0?'#5a8098':'#1e3840';ctx.lineWidth=i%3===0?2:1;ctx.stroke();
+    if(i%3===0){const v=+(min+range*i/nT).toFixed(0);ctx.font='6px monospace';ctx.fillStyle='#3a6070';ctx.textAlign='center';ctx.fillText(v,cx+Math.cos(a)*(r-17),cy+Math.sin(a)*(r-17)+2);}
+  }
+  if(centre){
+    const zA=sA+sw*(0-min)/range;
+    ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+Math.cos(zA)*(r-8),cy+Math.sin(zA)*(r-8));
+    ctx.strokeStyle='rgba(255,255,255,.2)';ctx.lineWidth=1;ctx.stroke();
+  }
+  const t=Math.max(0,Math.min(1,(val-min)/range));
+  const eA=sA+sw*t;
+  ctx.beginPath();ctx.arc(cx,cy,r-5,sA,eA);ctx.strokeStyle=col;ctx.lineWidth=3;ctx.lineCap='round';ctx.stroke();
+  ctx.save();ctx.translate(cx,cy);ctx.rotate(eA);
+  ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(r-10,0);ctx.strokeStyle=col;ctx.lineWidth=2.5;ctx.lineCap='round';ctx.stroke();
+  ctx.restore();
+  ctx.beginPath();ctx.arc(cx,cy,4,0,Math.PI*2);ctx.fillStyle='#050a12';ctx.fill();
+  ctx.beginPath();ctx.arc(cx,cy,2.5,0,Math.PI*2);ctx.fillStyle=col;ctx.fill();
+  ctx.font='bold 11px monospace';ctx.fillStyle=col;ctx.textAlign='center';ctx.fillText(Math.round(val),cx,cy+22);
+  ctx.font='7px monospace';ctx.fillStyle='#2a4860';ctx.fillText(unit,cx,cy+32);
+}
+
+function drawHIDial(id,hdg){
+  const cv=document.getElementById(id);if(!cv)return;
+  const W=cv.width,H2=cv.height,ctx=cv.getContext('2d');
+  ctx.clearRect(0,0,W,H2);
+  const cx=W/2,cy=H2/2,r=W/2-3;
+  const g=ctx.createRadialGradient(cx-r*.3,cy-r*.3,r*.05,cx,cy,r);
+  g.addColorStop(0,'#1a2e40');g.addColorStop(1,'#050a12');
+  ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.fillStyle=g;ctx.fill();
+  ctx.strokeStyle='rgba(24,192,232,.2)';ctx.lineWidth=1.5;ctx.stroke();
+  ctx.save();ctx.translate(cx,cy);ctx.rotate(-hdg*D2R);
+  for(let i=0;i<36;i++){
+    const a=i*10*D2R,in2=r-9,out2=r-2;
+    ctx.beginPath();ctx.moveTo(Math.cos(a)*in2,Math.sin(a)*in2);ctx.lineTo(Math.cos(a)*out2,Math.sin(a)*out2);
+    ctx.strokeStyle=i%3===0?'#5a8098':'#1e3840';ctx.lineWidth=i%3===0?2:1;ctx.stroke();
+    if(i%3===0){
+      const lbl=i===0?'N':i===9?'E':i===18?'S':i===27?'W':String(i*10).padStart(3,'0');
+      ctx.font='7px monospace';ctx.fillStyle=i===0?'#d83838':'#3a6070';ctx.textAlign='center';
+      ctx.fillText(lbl,Math.cos(a)*(r-17),Math.sin(a)*(r-17)+2);
+    }
+  }
+  ctx.restore();
+  ctx.beginPath();ctx.moveTo(cx,cy-r+3);ctx.lineTo(cx-4,cy-r+10);ctx.lineTo(cx+4,cy-r+10);ctx.closePath();ctx.fillStyle='#f0c030';ctx.fill();
+  ctx.font='bold 10px monospace';ctx.fillStyle='#f0c030';ctx.textAlign='center';
+  ctx.fillText(Math.round(hdg).toString().padStart(3,'0')+'°',cx,cy+22);
+}
+
+function drawStick(){
+  const cv=document.getElementById('stick-cv');if(!cv)return;
+  const W=cv.width,H2=cv.height,ctx=cv.getContext('2d');
+  ctx.clearRect(0,0,W,H2);
+  const cx=W/2,cy=H2/2,R=28;
+  ctx.beginPath();ctx.arc(cx,cy,R,0,Math.PI*2);
+  ctx.strokeStyle='rgba(24,192,232,.25)';ctx.lineWidth=1.5;ctx.stroke();
+  ctx.fillStyle='rgba(4,8,16,.7)';ctx.fill();
+  ctx.strokeStyle='rgba(90,128,152,.35)';ctx.lineWidth=.5;
+  ctx.beginPath();ctx.moveTo(cx-R,cy);ctx.lineTo(cx+R,cy);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(cx,cy-R);ctx.lineTo(cx,cy+R);ctx.stroke();
+  const sx=cx+H.cycRoll*R, sy=cy-H.cycPitch*R;
+  ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(sx,sy);
+  ctx.strokeStyle='rgba(240,192,48,.3)';ctx.lineWidth=2;ctx.stroke();
+  ctx.beginPath();ctx.arc(sx,sy,6,0,Math.PI*2);ctx.fillStyle='#f0c030';ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,.4)';ctx.lineWidth=1;ctx.stroke();
+}
+
+function drawCollective(){
+  const cv=document.getElementById('coll-cv');if(!cv)return;
+  const W=cv.width,H2=cv.height,ctx=cv.getContext('2d');
+  ctx.clearRect(0,0,W,H2);
+  const px=4,py=6,tH=H2-py*2;
+  const neutral=py+tH*(1-.30);
+  ctx.fillStyle='rgba(24,192,232,.08)';ctx.fillRect(px,py,W-px*2,tH);
+  ctx.strokeStyle='rgba(24,192,232,.2)';ctx.lineWidth=1;ctx.strokeRect(px,py,W-px*2,tH);
+  ctx.strokeStyle='rgba(240,192,48,.35)';ctx.lineWidth=1;ctx.setLineDash([2,2]);
+  ctx.beginPath();ctx.moveTo(px-1,neutral);ctx.lineTo(W-px+1,neutral);ctx.stroke();ctx.setLineDash([]);
+  const fillY=py+tH*(1-(typeof CTRL!=="undefined"?CTRL.collective:0.3));
+  const _col=typeof CTRL!=="undefined"?CTRL.collective:0.3;const cc=_col>.8?'#d83838':H.collective>.6?'#e0c018':H.collective>.3?'#10b060':'#18c0e8';
+  ctx.fillStyle=cc+'55';ctx.fillRect(px+1,fillY,W-px*2-2,tH-fillY+py);
+  ctx.beginPath();ctx.arc(W/2,fillY,W/2-px+2,0,Math.PI*2);ctx.fillStyle=cc;ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,.3)';ctx.lineWidth=.5;ctx.stroke();
+  ctx.font='6.5px monospace';ctx.fillStyle=cc;ctx.textAlign='center';
+  ctx.fillText(Math.round((typeof CTRL!=="undefined"?CTRL.collective:0.3)*100)+'%',W/2,H2-1);
+}
+
+function drawPedals(){
+  const cv=document.getElementById('ped-cv');if(!cv)return;
+  const W=cv.width,H2=cv.height,ctx=cv.getContext('2d');
+  ctx.clearRect(0,0,W,H2);
+  const lPush=H.pedal<0?Math.abs(H.pedal):0,rPush=H.pedal>0?H.pedal:0;
+  const drawPed=(x,w,push,lbl)=>{
+    ctx.beginPath();
+    if(cv.getContext&&typeof ctx.roundRect==='function')ctx.roundRect(x+push*3,H2*.15,w,H2*.7,2);
+    else{ctx.rect(x+push*3,H2*.15,w,H2*.7);}
+    ctx.fillStyle=push>.1?'rgba(240,192,48,.5)':'rgba(24,192,232,.12)';ctx.fill();
+    ctx.strokeStyle='rgba(24,192,232,.3)';ctx.lineWidth=1;ctx.stroke();
+    ctx.font='7px monospace';ctx.fillStyle='#2a4858';ctx.textAlign='center';ctx.fillText(lbl,x+push*3+w/2,H2*.12);
+  };
+  drawPed(4,36,lPush,'L');drawPed(W-40,36,rPush,'R');
+  ctx.strokeStyle='rgba(24,192,232,.15)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(40,H2/2);ctx.lineTo(W-40,H2/2);ctx.stroke();
+  ctx.font='7.5px monospace';
+  ctx.fillStyle=Math.abs(H.pedal)>.05?'#f0c030':'#1e3040';
+  ctx.textAlign='center';
+  ctx.fillText(H.pedal>'.05'?'→YAW':H.pedal<-'.05'?'YAW←':'─',W/2,H2-.5);
+}
+
+/* ═══════════════════════════════════════════════════════
+   MINIMAP
+   ═══════════════════════════════════════════════════════ */
+function drawMinimap(){
+  const cv=document.getElementById('mm-cv');if(!cv)return;
+  const W=cv.width,H2=cv.height,ctx=cv.getContext('2d');
+  ctx.clearRect(0,0,W,H2);
+  ctx.fillStyle='rgba(4,8,16,.92)';ctx.fillRect(0,0,W,H2);
+  const SC=0.000075;
+  ctx.strokeStyle='#0c1828';ctx.lineWidth=.5;
+  for(let x=0;x<W;x+=18){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H2);ctx.stroke();}
+  for(let y=0;y<H2;y+=18){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+  olsList.forEach(o=>{
+    const dx=(o.lng-H.lng)/SC+W/2,dy=-(o.lat-H.lat)/SC+H2/2;
+    ctx.beginPath();ctx.arc(dx,dy,5,0,Math.PI*2);
+    ctx.strokeStyle=(THEME[o.p.col]||THEME.cy).app;ctx.lineWidth=1.5;ctx.stroke();
+  });
+  vpList.forEach(v=>{
+    const dx=(v.lng-H.lng)/SC+W/2,dy=-(v.lat-H.lat)/SC+H2/2;
+    ctx.fillStyle=v.visited?'#10b060':'#9070e0';ctx.fillRect(dx-4,dy-4,8,8);
+  });
+  ctx.save();ctx.translate(W/2,H2/2);ctx.rotate(H.hdg*D2R);
+  ctx.fillStyle='#f0c030';
+  ctx.beginPath();ctx.moveTo(0,-10);ctx.lineTo(-5,8);ctx.lineTo(5,8);ctx.closePath();ctx.fill();
+  ctx.restore();
+  ctx.strokeStyle='rgba(24,192,232,.1)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.arc(W/2,H2/2,W*.33,0,Math.PI*2);ctx.stroke();
+  ctx.fillStyle='#18c0e8';ctx.font='7px monospace';ctx.fillText('N',W/2-3,9);
+}
+
+/* ═══════════════════════════════════════════════════════
+   COCKPIT FRAME — Wide-angle style (FOV 80°対応)
+   Aピラーを細く、開口部を広く設定して横方向視野を拡大
+   ═══════════════════════════════════════════════════════ */
+function drawCockpitFrame(){
+  const cv=document.getElementById('cpframe');if(!cv)return;
+  const mw=document.getElementById('mw');
+  cv.width=mw.offsetWidth;cv.height=mw.offsetHeight;
+  const W=cv.width,H2=cv.height,ctx=cv.getContext('2d');
+  ctx.clearRect(0,0,W,H2);
+  const panelH=210;
+  const frameH=H2-panelH;
+
+  // ── A-pillar geometry (eVTOL/ヘリ型: 視野広め、斜めピラー) ──
+  const PLW=W*.055, PLB=W*.038; // top/bottom width of left pillar
+  const PRW=W*.055, PRB=W*.038;
+
+  // ─── Left A-pillar ───
+  // Outer face (solid dark, represents pillar thickness)
+  ctx.beginPath();
+  ctx.moveTo(0,0); ctx.lineTo(PLW,0); ctx.lineTo(PLB,frameH); ctx.lineTo(0,frameH);
+  ctx.closePath();
+  const gL=ctx.createLinearGradient(0,0,PLW*1.2,0);
+  gL.addColorStop(0,'rgba(3,8,14,1)');
+  gL.addColorStop(0.3,'rgba(10,22,36,.97)');
+  gL.addColorStop(0.7,'rgba(14,30,50,.82)');
+  gL.addColorStop(1,'rgba(8,18,32,.12)');
+  ctx.fillStyle=gL; ctx.fill();
+  // Inner edge highlight (metallic edge catch light)
+  const gLE=ctx.createLinearGradient(PLW*.55,0,PLW*.85,0);
+  gLE.addColorStop(0,'rgba(40,80,120,.0)');
+  gLE.addColorStop(0.4,'rgba(60,110,160,.18)');
+  gLE.addColorStop(1,'rgba(30,60,100,.0)');
+  ctx.beginPath();
+  ctx.moveTo(PLW*.5,0); ctx.lineTo(PLW,0); ctx.lineTo(PLB*.9,frameH); ctx.lineTo(PLB*.55,frameH);
+  ctx.closePath(); ctx.fillStyle=gLE; ctx.fill();
+
+  // ─── Right A-pillar ───
+  ctx.beginPath();
+  ctx.moveTo(W-PRW,0); ctx.lineTo(W,0); ctx.lineTo(W,frameH); ctx.lineTo(W-PRB,frameH);
+  ctx.closePath();
+  const gR=ctx.createLinearGradient(W-PRW*1.2,0,W,0);
+  gR.addColorStop(0,'rgba(8,18,32,.12)');
+  gR.addColorStop(0.3,'rgba(14,30,50,.82)');
+  gR.addColorStop(0.7,'rgba(10,22,36,.97)');
+  gR.addColorStop(1,'rgba(3,8,14,1)');
+  ctx.fillStyle=gR; ctx.fill();
+  // Inner edge highlight
+  const gRE=ctx.createLinearGradient(W-PRW,0,W-PRW*.65,0);
+  gRE.addColorStop(0,'rgba(30,60,100,.0)');
+  gRE.addColorStop(0.6,'rgba(60,110,160,.18)');
+  gRE.addColorStop(1,'rgba(40,80,120,.0)');
+  ctx.beginPath();
+  ctx.moveTo(W-PRW,0); ctx.lineTo(W-PRW*.45,0); ctx.lineTo(W-PRB*.5,frameH); ctx.lineTo(W-PRB*.9,frameH);
+  ctx.closePath(); ctx.fillStyle=gRE; ctx.fill();
+
+  // ─── Center post (細め: 1.2%) ───
+  const pW=W*.012;
+  const gC=ctx.createLinearGradient(W/2-pW,0,W/2+pW,0);
+  gC.addColorStop(0,'rgba(5,12,22,.28)');
+  gC.addColorStop(0.4,'rgba(16,32,52,.88)');
+  gC.addColorStop(0.6,'rgba(20,40,64,.92)');
+  gC.addColorStop(1,'rgba(5,12,22,.28)');
+  ctx.fillStyle=gC; ctx.fillRect(W/2-pW/2,0,pW,frameH);
+  // Center post edge highlights
+  ctx.strokeStyle='rgba(50,90,130,.12)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(W/2-pW/2,0); ctx.lineTo(W/2-pW/2,frameH); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(W/2+pW/2,0); ctx.lineTo(W/2+pW/2,frameH); ctx.stroke();
+
+  // ─── Roof bar ───
+  const gT=ctx.createLinearGradient(0,0,0,28);
+  gT.addColorStop(0,'rgba(2,7,14,1)');
+  gT.addColorStop(0.6,'rgba(4,12,22,.65)');
+  gT.addColorStop(1,'rgba(3,10,18,.08)');
+  ctx.fillStyle=gT; ctx.fillRect(0,0,W,26);
+
+  // ─── Instrument panel transition (下部グレア/影) ───
+  // Glare shelf — dashboard glass reflection
+  const gShelf=ctx.createLinearGradient(0,frameH-28,0,frameH);
+  gShelf.addColorStop(0,'rgba(8,20,36,.0)');
+  gShelf.addColorStop(0.5,'rgba(12,28,48,.18)');
+  gShelf.addColorStop(1,'rgba(4,12,24,.62)');
+  ctx.fillStyle=gShelf; ctx.fillRect(0,frameH-28,W,28);
+  // Dashboard-to-windshield divider line
+  ctx.strokeStyle='rgba(18,40,68,.8)'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(0,frameH); ctx.lineTo(W,frameH); ctx.stroke();
+  // Subtle dashboard top surface (a thin strip of the panel is visible)
+  const gDash=ctx.createLinearGradient(0,frameH,0,frameH+12);
+  gDash.addColorStop(0,'rgba(20,45,72,.9)');
+  gDash.addColorStop(1,'rgba(8,18,32,.95)');
+  ctx.fillStyle=gDash; ctx.fillRect(0,frameH,W,12);
+
+  // ─── Wiper arcs (curved sweep pattern) ───
+  ctx.save();
+  ctx.strokeStyle='rgba(18,36,58,.55)'; ctx.lineWidth=1.0;
+  // Left wiper sweep arc
+  const lWiperCX=W*.19, lWiperCY=frameH*1.12, lWiperR=frameH*.88;
+  const lStart=-Math.PI*0.78, lEnd=-Math.PI*0.48;
+  for(let i=0;i<3;i++){
+    const off=i*0.012;
+    ctx.beginPath(); ctx.arc(lWiperCX,lWiperCY,lWiperR*(0.72+i*.06),lStart+off,lEnd+off);
+    ctx.stroke();
+  }
+  // Right wiper sweep arc
+  const rWiperCX=W*.81, rWiperCY=frameH*1.12, rWiperR=frameH*.88;
+  const rStart=-Math.PI*0.52, rEnd=-Math.PI*0.22;
+  for(let i=0;i<3;i++){
+    const off=i*0.012;
+    ctx.beginPath(); ctx.arc(rWiperCX,rWiperCY,rWiperR*(0.72+i*.06),rStart+off,rEnd+off);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // ─── Glass reflections / glare ───
+  // Broad sky reflection across upper windshield
+  const gSky=ctx.createRadialGradient(W*.5,frameH*.04,0,W*.5,frameH*.05,W*.44);
+  gSky.addColorStop(0,'rgba(180,210,255,.028)');
+  gSky.addColorStop(0.5,'rgba(140,180,240,.012)');
+  gSky.addColorStop(1,'rgba(100,150,220,.0)');
+  ctx.fillStyle=gSky; ctx.fillRect(PLW,0,W-PLW-PRW,frameH*.35);
+  // Specular highlight spots on glass
+  const spots=[
+    {x:W*.26,y:frameH*.09,rx:W*.09,ry:frameH*.025,a:-.10,op:.025},
+    {x:W*.73,y:frameH*.08,rx:W*.07,ry:frameH*.020,a: .10,op:.020},
+    {x:W*.50,y:frameH*.03,rx:W*.06,ry:frameH*.014,a: .00,op:.018},
+  ];
+  spots.forEach(s=>{
+    ctx.beginPath(); ctx.ellipse(s.x,s.y,s.rx,s.ry,s.a,0,Math.PI*2);
+    ctx.fillStyle='rgba(220,235,255,'+s.op+')'; ctx.fill();
+  });
+
+  // ─── Vignette (peripheral vision reduction) ───
+  // Side vignettes
+  const vigL=ctx.createLinearGradient(0,0,W*.10,0);
+  vigL.addColorStop(0,'rgba(0,0,0,.22)'); vigL.addColorStop(1,'rgba(0,0,0,.0)');
+  ctx.fillStyle=vigL; ctx.fillRect(PLW*.85,0,W*.10,frameH);
+  const vigR=ctx.createLinearGradient(W*.90,0,W,0);
+  vigR.addColorStop(0,'rgba(0,0,0,.0)'); vigR.addColorStop(1,'rgba(0,0,0,.22)');
+  ctx.fillStyle=vigR; ctx.fillRect(W*.90,0,W*.10,frameH);
+  // Radial vignette (peripheral darkening)
+  const vigRad=ctx.createRadialGradient(W*.5,frameH*.42,frameH*.28,W*.5,frameH*.42,frameH*.78);
+  vigRad.addColorStop(0,'rgba(0,0,0,.0)');
+  vigRad.addColorStop(0.6,'rgba(0,0,0,.0)');
+  vigRad.addColorStop(1,'rgba(0,0,0,.28)');
+  ctx.fillStyle=vigRad; ctx.fillRect(0,0,W,frameH);
+  // Top-corner lens darkening (typical wide-angle camera/eye characteristic)
+  const vigTL=ctx.createRadialGradient(0,0,0,0,0,frameH*.55);
+  vigTL.addColorStop(0,'rgba(0,0,0,.0)'); vigTL.addColorStop(1,'rgba(0,0,0,.16)');
+  ctx.fillStyle=vigTL; ctx.fillRect(0,0,W*.22,frameH*.35);
+  const vigTR=ctx.createRadialGradient(W,0,0,W,0,frameH*.55);
+  vigTR.addColorStop(0,'rgba(0,0,0,.0)'); vigTR.addColorStop(1,'rgba(0,0,0,.16)');
+  ctx.fillStyle=vigTR; ctx.fillRect(W*.78,0,W*.22,frameH*.35);
+}
+
+/* ═══════════════════════════════════════════════════════
+   SIDEBAR PANELS
+   ═══════════════════════════════════════════════════════ */
+function updatePlayerPanel(){
+  const p=document.getElementById('pp');
+  if(!flyOn){p.innerHTML='<div class="hn">飛行開始で表示</div>';return;}
+  p.innerHTML=`<div style="font-family:var(--mono);font-size:8.5px;line-height:1.9;color:var(--tx2)">
+    <div>フェーズ: <span style="color:${PHASE_C[H.phase]}">${PHASE_JP[H.phase]||H.phase}</span></div>
+    <div>速度: <span style="color:#f0c030;font-size:11px;font-weight:700">${Math.round(H.spdKmh)} km/h</span></div>
+    <div>高度: <span style="color:var(--ac)">${Math.round(H.alt)} m AGL</span></div>
+    <div>Vz: <span style="color:${(typeof VEL!=='undefined'?VEL.y:0)>=0?'var(--gr)':'var(--rd)'}">${(typeof VEL!=='undefined'?VEL.y:0)>=0?'+':''}${(typeof VEL!=='undefined'?VEL.y:0).toFixed(1)} m/s</span></div>
+    <div>方位: ${Math.round(H.hdg)}° | ピッチ: ${H.pitch.toFixed(1)}° | ロール: ${H.roll.toFixed(1)}°</div>
+    <div>パワー: <span style="color:var(--am)">${Math.round((typeof CTRL!=="undefined"?CTRL.collective:0.3)*100)}%</span>
+         GE: ${H.gEffect?'<span style="color:var(--gr)">ON</span>':'OFF'}</div>
+    <div>位置: ${H.lat.toFixed(5)}, ${H.lng.toFixed(5)}</div>
+    ${H.olsViol?`<div style="color:var(--rd)">⚠ OLS侵犯</div>`:`<div style="color:var(--gr)">✓ OLS クリア</div>`}
+    ${H.msaViol?`<div style="color:var(--am)">⚠ MSA違反</div>`:`<div style="color:var(--gr)">✓ 最低安全高度OK</div>`}
+  </div>`;
+}
+
+function updateGamePanel(){
+  const p=document.getElementById('game-panel');
+  const unvisited=vpList.filter(v=>!v.visited);
+  const m=Math.floor(flightSec/60),s=flightSec%60;
+  const gm=document.getElementById('game-mode')?.value||'gate';
+  const gr=+(document.getElementById('gate-radius')?.value||85);
+  const ga=+(document.getElementById('gate-alt')?.value||120);
+  p.innerHTML=`<div style="font-family:var(--mono);font-size:8.5px;line-height:2;color:var(--tx2)">
+    <div>🏆 スコア: <span style="color:#f0c030;font-size:11px;font-weight:700">${score}</span></div>
+    <div>モード: <span style="color:var(--ac)">${gm==='gate'?'ゲート通過':gm==='approach'?'OLS進入体験':'自由飛行'}</span></div>
+    <div>飛行時間: ${m}:${s.toString().padStart(2,'0')}</div>
+    <div>VP通過: ${missionsCompleted}/${vpList.length}</div>
+    <div>ゲート条件: 半径${gr}m / 高度≤${ga}m</div>
+    <div>OLS警告: <span style="color:${olsViolCount?'var(--rd)':'var(--gr)'}">${olsViolCount}</span>　低高度警告: <span style="color:${msaViolCount?'var(--am)':'var(--gr)'}">${msaViolCount}</span></div>
+    ${unvisited.length?`<div>次の目標: <span style="color:var(--acg)">${unvisited[0]?.label||'—'}</span></div>`:'<div style="color:var(--gr)">✓ 全VP通過！</div>'}
+    <hr style="border:none;border-top:1px solid var(--bd);margin:2px 0">
+    <div><span class="training-chip">W/S ピッチトリム</span><span class="training-chip">A/D ロールトリム</span><span class="training-chip">Q/E ペダル</span><span class="training-chip">↑↓ パワー</span></div>
+    <div style="font-size:7.5px;color:var(--tx3);line-height:1.55">
+      注: この低高度・OLS警告は教材用のゲーム判定です。法的な適否判定ではありません。
+    </div>
+  </div>`;
+}
+
+
+/* ═══════════════════════════════════════════════════════
+   v9 TRAINING GAME / EDUCATIONAL ASSIST
+   ═══════════════════════════════════════════════════════ */
+function applyFlightFeel(writeLog=true){
+  const m=document.getElementById('flightFeel')?.value||'arcade';
+  if(m==='trainer'){
+    Object.assign(PHY,{H_DRAG:.996,V_DRAG:1.000,YAW_RATE:15,CYCLIC_SMOOTH:.055,CYCLIC_MAX_P:.22,CYCLIC_MAX_R:.22,HOVER_COL:.32,COL_RATE:.80,COL_RATE_F:1.20,TRIM_RATE:0.55,TILT_ACCEL:14.0,FWD_DRAG_K:0.9982,LAT_DRAG_K:0.9975,WV:0});
+  }else if(m==='evtol'){
+    Object.assign(PHY,{H_DRAG:.996,V_DRAG:1.000,YAW_RATE:15,CYCLIC_SMOOTH:.10,CYCLIC_MAX_P:.50,CYCLIC_MAX_R:.50,HOVER_COL:.30,COL_RATE:1.20,COL_RATE_F:1.80,TRIM_RATE:0.90,TILT_ACCEL:18.0,FWD_DRAG_K:0.9978,LAT_DRAG_K:0.9970,WV:0});
+  }else if(m==='heli'){
+    Object.assign(PHY,{H_DRAG:.996,V_DRAG:1.000,YAW_RATE:15,CYCLIC_SMOOTH:.085,CYCLIC_MAX_P:.44,CYCLIC_MAX_R:.48,HOVER_COL:.30,COL_RATE:1.10,COL_RATE_F:1.60,TRIM_RATE:0.80,TILT_ACCEL:17.0,FWD_DRAG_K:0.9980,LAT_DRAG_K:0.9972,WV:1.2});
+  }else{
+    Object.assign(PHY,{H_DRAG:.996,V_DRAG:1.000,YAW_RATE:15,CYCLIC_SMOOTH:.10,CYCLIC_MAX_P:.50,CYCLIC_MAX_R:.50,HOVER_COL:.30,COL_RATE:1.20,COL_RATE_F:1.80,TRIM_RATE:0.85,TILT_ACCEL:18.0,FWD_DRAG_K:0.9978,LAT_DRAG_K:0.9970,WV:0});
+  }
+  PHY.YAW_RATE=+(document.getElementById('ac-yaw')?.value||15);
+  const badge=document.getElementById('assist-badge');
+  if(badge)badge.textContent='FEEL: '+({arcade:'GAME',evtol:'eVTOL',heli:'HELI',trainer:'ASSIST'}[m]||m).toUpperCase();
+  if(writeLog)log('操縦感: '+m,'i');
+}
+function showInstructor(msg,ms=3200,type='info'){
+  const el=document.getElementById('instructor'); if(!el)return;
+  el.textContent=msg; el.classList.add('on');
+  el.style.borderColor=type==='warn'?'rgba(224,152,24,.55)':type==='bad'?'rgba(216,56,56,.55)':'rgba(24,192,232,.24)';
+  _msgUntil=performance.now()+ms;
+}
+function checkMSA(){
+  const lim=+(document.getElementById('msa-game')?.value||60);
+  // This is an educational game threshold, not a legal determination.
+  H.msaViol=(H.alt>3 && H.alt<lim);
+  H.msaTxt=`低高度注意 ${Math.round(H.alt)}m < ${lim}m`;
+  if(H.msaViol&&!_prevMsa){msaViolCount++;showInstructor('低高度です。都市部・障害物周辺では十分な高度余裕を意識してください。',2600,'warn');}
+  _prevMsa=H.msaViol;
+}
+/* ── v15.2: 建物衝突判定 ──────────────────────────────
+   queryRenderedFeatures を約10Hzに間引いて fill-extrusion 層を照会。
+   ・機体直下±8px: H.altMSL < 地表+建物高 なら「衝突」
+   ・周辺±42px: 最高屋根とのMSL垂直余裕を H.proxBld として表示
+   制約: レンダリング済みタイルのみ対象（画面外の建物は判定不可）。
+   建物はDEMに含まれないため地形接地とは独立に扱う。 */
+function computeProximity(){
+  H.proxTer=Math.max(0,Math.round(H.alt));
+  if(!map||!flyOn){H.proxBld=999;H.bldHit=false;return;}
+  if((_bldTick++%6)!==0)return; // ~10Hz
+  try{
+    const pt=map.project([H.lng,H.lat]);
+    const cv=map.getCanvas();
+    const dpr=window.devicePixelRatio||1;
+    const W=cv.width/dpr, Hc=cv.height/dpr;
+    if(!(pt&&isFinite(pt.x)&&pt.x>=0&&pt.y>=0&&pt.x<=W&&pt.y<=Hc)){return;} // 画面外は前回値を保持
+    const q=(r)=>{
+      try{
+        return map.queryRenderedFeatures([[pt.x-r,pt.y-r],[pt.x+r,pt.y+r]])
+          .filter(f=>f.layer&&f.layer.type==='fill-extrusion'&&f.properties&&Number(f.properties.height)>0);
+      }catch(e){return[];}
+    };
+    const near=q(8);
+    let hit=false;
+    near.forEach(f=>{
+      const roof=H.gnd+Number(f.properties.height);
+      if(H.altMSL<roof-0.5&&H.alt>0.3)hit=true; // 接地中は地上走行として除外
+    });
+    const adv=q(42);
+    let advRoof=-1;
+    adv.forEach(f=>{const roof=H.gnd+Number(f.properties.height);if(roof>advRoof)advRoof=roof;});
+    H.proxBld=advRoof>0?Math.round(H.altMSL-advRoof):999; // 垂直余裕[m] (負=屋根より低い)
+    H.bldHit=hit;
+  }catch(e){}
+}
+function nextTarget(){
+  return vpList.find(v=>!v.visited)||null;
+}
+function checkVPProximity(){
+  const tgt=nextTarget();
+  if(!tgt)return;
+  const r=+(document.getElementById('gate-radius')?.value||85);
+  const altMax=+(document.getElementById('gate-alt')?.value||120);
+  const d=hav(H.lat,H.lng,tgt.lat,tgt.lng);
+  if(d<r && H.alt<=altMax){
+    tgt.visited=true;missionsCompleted++;gateScore=Math.min(40,missionsCompleted*10);
+    updateVPList();updateGamePanel();
+    showInstructor(`${tgt.label} 通過。次のゲートへ。制限表面と進入方向の見え方を確認してください。`,3600,'info');
+    log(`${tgt.label} 通過: d=${Math.round(d)}m alt=${Math.round(H.alt)}m`,'ok');
+  }
+}
+function updateTrainingHUD(){
+  const cue=document.getElementById('target-cue');
+  const arrow=document.getElementById('target-arrow');
+  const txt=document.getElementById('target-text');
+  const fd=document.getElementById('flight-director');
+  if(!cue||!arrow||!txt)return;
+  const tgt=nextTarget();
+  if(!flyOn||!tgt){cue.classList.remove('on'); if(fd)fd.classList.remove('on'); return;}
+  const d=hav(H.lat,H.lng,tgt.lat,tgt.lng);
+  const b=brg(H.lat,H.lng,tgt.lat,tgt.lng);
+  const rel=wrap180(b-H.hdg);
+  const arrowChar=Math.abs(rel)<12?'▲':rel>0?'▶':'◀';
+  arrow.textContent=arrowChar;
+  const r=+(document.getElementById('gate-radius')?.value||85);
+  const altMax=+(document.getElementById('gate-alt')?.value||120);
+  cue.className='on '+(H.alt>altMax?'warn':d<r?'':'');
+  txt.textContent=`${tgt.label} ${Math.round(d)}m / 方位差 ${Math.round(rel)}° / ゲート高度≤${altMax}m`;
+  cue.style.left=(50+clamp(rel/3,-22,22))+'%';
+  if(fd){fd.classList.add('on');fd.style.transform=`translate(-50%,-50%) translateX(${clamp(rel*1.2,-120,120)}px) translateY(${clamp((H.alt-altMax*.55)*.35,-65,65)}px)`;}
+  const now=performance.now();
+  if(now>_msgUntil){
+    const m=document.getElementById('game-mode')?.value||'gate';
+    if(m==='approach')showInstructor('進入面は「障害物をこの面より下に抑えるための空間管理」です。飛びながら面の立ち上がりを確認してください。',2800,'info');
+    else if(Math.abs(rel)>35)showInstructor('目標は左右にずれています。Q/Eで機首を合わせ、Wでゆっくり前進。急がなくて大丈夫です。',2200,'info');
+    else if(H.alt>altMax)showInstructor('ゲート高度より高めです。↓でパワーを抜き、前方を見ながら降下してください。',2200,'warn');
+  }
+}
+function setupTrainingScenario(){
+  if(!map){alert('先にMapboxトークンを入力して地図を起動してください');return;}
+  if(flyOn)toggleFly();
+  // Existing objects are cleared to make a simple repeatable course.
+  olsList.slice().forEach(o=>removeOLS(o.id));
+  vpList.forEach(v=>v.mkr.remove());vpList=[];updateVPList();
+  const c=map.getCenter();
+  const base={lat:c.lat,lng:c.lng};
+  // Place one central OLS and three training gates along/around the approach path.
+  addOLS(base.lat,base.lng);
+  const p1=dest(base.lat,base.lng,0,260);
+  const p2=dest(base.lat,base.lng,28,620);
+  const p3=dest(base.lat,base.lng,72,980);
+  addVP(base.lat,base.lng);
+  addVP(p1.lat,p1.lng);
+  addVP(p2.lat,p2.lng);
+  addVP(p3.lat,p3.lng);
+  updateGamePanel();
+  showInstructor('練習コースを作成しました。VP-1から順に通過し、進入面・転移面との位置関係を見てください。',5200,'info');
+  log('練習コース自動作成: OLS×1 / VP×4','ok');
+}
+
+/* ═══════════════════════════════════════════════════════
+   RESET
+   ═══════════════════════════════════════════════════════ */
+function resetAll(){
+  if(flyOn)toggleFly();
+  olsList.slice().forEach(o=>removeOLS(o.id));
+  vpList.forEach(v=>v.mkr.remove());vpList=[];updateVPList();
+  score=0;missionsCompleted=0;olsViolCount=0;msaViolCount=0;flightSec=0;
+  bldHitCount=0;terHitCount=0;_prevBldHit=false;
+  landingScore=0;gateScore=0;wasAirborne=false;landingTriggered=false;
+  document.getElementById('pp').innerHTML='<div class="hn">飛行開始で表示</div>';
+  document.getElementById('game-panel').innerHTML='<div class="hn">飛行開始でミッション表示</div>';
+  fst('リセット');log('リセット完了','w');
+}
+
+/* ═══════════════════════════════════════════════════════
+   STARTUP
+   ═══════════════════════════════════════════════════════ */
+(()=>{
+  try{const t=localStorage.getItem('eols6_tok');if(t)document.getElementById('tok').value=t;}catch(e){}
+  try{bestScore=+(localStorage.getItem('eols14_best')||0);}catch(e){}
+  if(!CanvasRenderingContext2D.prototype.roundRect){
+    CanvasRenderingContext2D.prototype.roundRect=function(x,y,w,h,r){
+      this.beginPath();this.moveTo(x+r,y);this.arcTo(x+w,y,x+w,y+h,r);this.arcTo(x+w,y+h,x,y+h,r);
+      this.arcTo(x,y+h,x,y,r);this.arcTo(x,y,x+w,y,r);this.closePath();
+    };
+  }
+  // Wire curve detail visibility on load
+  setTimeout(()=>{updateCurveDetailVis();},100);
+
+  log('eVTOL OLS FlightSim v6 Pilot Edition','i');
+  log('手順: ① Tokenで地図起動 ② スタイル/環境選択 ③ OLS設置 ④ VP設置 ⑤ 飛行開始','i');
+  log('カメラ: ピッチ/ロール/ヨーで視点が連動します','i');
+})();
+
+/* ══════════════════════════════════════════════════════
+   v14 — 100-POINT FLIGHT SCORE ENGINE
+   ══════════════════════════════════════════════════════
+   採点内訳 (満点100pt):
+     ゲート通過  10pt × 通過数 (最大4ゲート = 40pt)
+     安全飛行    30pt − OLS違反×5 − 低高度×3  (下限0)
+     着陸品質    30pt  (速度12 + 降下率12 + 進入方位6)
+   ══════════════════════════════════════════════════════ */
+
+function computeScore100(){
+  var gate=Math.min(40,missionsCompleted*10);
+  // v15.2: 建物衝突-10/地表衝突-8を安全項に追加 (安全項の下限0は維持)
+  var safety=Math.max(0,30-olsViolCount*5-msaViolCount*3-bldHitCount*10-terHitCount*8);
+  return Math.min(100,gate+safety+landingScore);
+}
+
+function gradeFromScore(s){
+  if(s>=95)return{ltr:'S',col:'#f0c030'};
+  if(s>=85)return{ltr:'A',col:'#00d8a8'};
+  if(s>=70)return{ltr:'B',col:'#18c0e8'};
+  if(s>=55)return{ltr:'C',col:'#a0b830'};
+  if(s>=40)return{ltr:'D',col:'#e09818'};
+  return{ltr:'F',col:'#d83838'};
+}
+
+function evaluateLanding14(){
+  if(landingTriggered)return;
+  landingTriggered=true;
+  var pts=0,msgs=[];
+  var spd=H.spdKmh;
+  var vs=(typeof VEL!=='undefined')?Math.abs(VEL.y):0;
+  // Speed (max 12)
+  if(spd<=20){pts+=12;msgs.push('速度◎');}
+  else if(spd<=45){pts+=8;msgs.push('速度○');}
+  else if(spd<=75){pts+=4;msgs.push('速度△');}
+  else msgs.push('速度✗');
+  // Sink rate (max 12)
+  if(vs<=0.8){pts+=12;msgs.push('降下率◎');}
+  else if(vs<=2.0){pts+=8;msgs.push('降下率○');}
+  else if(vs<=4.0){pts+=4;msgs.push('降下率△');}
+  else msgs.push('降下率✗');
+  // Heading alignment with nearest OLS approach bearing (max 6)
+  var ap=2;
+  if(olsList.length>0){
+    var bestDiff=180;
+    olsList.forEach(function(o){
+      [o.p.h1||0,o.p.h2||180].forEach(function(b){
+        var diff=Math.abs(wrap180(H.hdg-b));
+        if(diff<bestDiff)bestDiff=diff;
+      });
+    });
+    if(bestDiff<=15)ap=6;
+    else if(bestDiff<=35)ap=4;
+    else ap=2;
+    msgs.push('進入方位'+(ap>=6?'◎':ap>=4?'○':'△'));
+  }
+  pts+=ap;
+  landingScore=Math.min(30,pts);
+  score=computeScore100();
+  log('🛬 着陸評価: '+pts+'/30pt — '+msgs.join(' '),'ok');
+  showInstructor('着陸評価 '+pts+'/30点 | '+msgs.join(' '),4500,'info');
+}
+
+function drawScoreGauge14(){
+  var cv=document.getElementById('score-gauge-cv');if(!cv)return;
+  var W=cv.width,H2=cv.height,ctx=cv.getContext('2d');
+  ctx.clearRect(0,0,W,H2);
+  var s=computeScore100();
+  var g=gradeFromScore(s);
+  var cx=W/2,cy=H2+6,r=H2-4;
+  // BG arc
+  ctx.beginPath();ctx.arc(cx,cy,r,Math.PI,0);
+  ctx.strokeStyle='rgba(24,192,232,.12)';ctx.lineWidth=7;ctx.lineCap='round';ctx.stroke();
+  // Score arc
+  var t=Math.min(1,s/100);
+  ctx.beginPath();ctx.arc(cx,cy,r,Math.PI,Math.PI+t*Math.PI);
+  ctx.strokeStyle=g.col;ctx.lineWidth=7;ctx.lineCap='round';ctx.stroke();
+  // Category ticks at 40 and 70
+  [40,70].forEach(function(tick){
+    var a=Math.PI+tick/100*Math.PI;
+    ctx.beginPath();
+    ctx.moveTo(cx+Math.cos(a)*(r-5),cy+Math.sin(a)*(r-5));
+    ctx.lineTo(cx+Math.cos(a)*(r+1),cy+Math.sin(a)*(r+1));
+    ctx.strokeStyle='rgba(255,255,255,.25)';ctx.lineWidth=1.5;ctx.stroke();
+  });
+  // Number
+  ctx.font='bold 14px monospace';ctx.fillStyle=g.col;ctx.textAlign='center';
+  ctx.fillText(s,cx,cy-6);
+  // Update DOM elements
+  var ge=document.getElementById('sg-grade');
+  if(ge){ge.textContent=g.ltr;ge.style.color=g.col;}
+  var pe=document.getElementById('sg-pts');
+  if(pe)pe.textContent=s+' / 100';
+}
+
+function updateMouseJoy14(){
+  // Update joystick dot position based on pitchTrim/rollTrim
+  const dot=document.getElementById('mj-dot');
+  if(!dot||!flyOn)return;
+  const cx=50,cy=50,R=38; // % of parent
+  const dx=rollTrim*R, dy=pitchTrim*R;
+  dot.style.left=(cx+dx)+'%';
+  dot.style.top =(cy+dy)+'%';
+  // Color: red when at limit, green when centered
+  const mag=Math.sqrt(pitchTrim*pitchTrim+rollTrim*rollTrim);
+  const col=mag>0.85?'rgba(216,56,56,.9)':mag>0.5?'rgba(240,192,48,.9)':'rgba(0,216,168,.9)';
+  dot.style.background=col;dot.style.boxShadow='0 0 8px '+col;
+  // Lock hint visibility
+  const hint=document.getElementById('lock-hint');
+  if(hint)hint.classList.toggle('on',!_pointerLocked&&flyOn);
+}
+
+function updateLiveScore14(){
+  var s=computeScore100();
+  var g=gradeFromScore(s);
+  var el=document.getElementById('ls-num');if(el)el.textContent=s;
+  var ge=document.getElementById('ls-grade');
+  if(ge){ge.textContent='['+g.ltr+']';ge.style.color=g.col;}
+}
+
+function updateApprStrip14(){
+  var el=document.getElementById('appr-strip');if(!el)return;
+  var tgt=vpList.find(function(v){return !v.visited;});
+  if(!tgt||!flyOn){el.classList.remove('on');return;}
+  var d=hav(H.lat,H.lng,tgt.lat,tgt.lng);
+  if(d>400||H.alt>250){el.classList.remove('on');return;}
+  el.classList.add('on');
+  var spd=H.spdKmh;
+  var vs=(typeof VEL!=='undefined')?Math.abs(VEL.y):0;
+  var sOk=spd<=60,vOk=vs<=3.5;
+  el.style.color=sOk&&vOk?'var(--acg)':(!sOk&&!vOk)?'var(--rd)':'var(--am)';
+  el.textContent='進入 '+Math.round(d)+'m  '+(sOk?'✓':'✗')+Math.round(spd)+'km/h  '+(vOk?'✓':'✗')+vs.toFixed(1)+'m/s降下';
+}
+
+function showSessionResult14(){
+  var s=computeScore100();
+  var g=gradeFromScore(s);
+  if(s>bestScore){
+    bestScore=s;
+    try{localStorage.setItem('eols14_best',s);}catch(e){}
+  }
+  sessionHistory.push(s);
+  var ring=document.getElementById('sess-grade-ring');
+  if(ring){ring.textContent=g.ltr;ring.style.color=g.col;ring.style.borderColor=g.col;}
+  var bd=document.getElementById('sess-breakdown');
+  if(bd){
+    var gate=Math.min(40,missionsCompleted*10);
+    var safety=Math.max(0,30-olsViolCount*5-msaViolCount*3);
+    var ls=landingScore;
+    var total=s;
+    var barFn=function(v,max,col){
+      return '<div class="score-bar-wrap"><div class="score-bar-fill" style="width:'+Math.round(v/max*100)+'%;background:'+col+'"></div></div>';
+    };
+    var prev=sessionHistory.length>1?'前回: '+sessionHistory[sessionHistory.length-2]:'';
+    bd.innerHTML=
+      '<div class="srow">'
+      +'<span>🎯 ゲート通過 '+missionsCompleted+'/'+vpList.length+'</span>'
+      +barFn(gate,40,'#f0c030')
+      +'<span class="sv" style="color:#f0c030">'+gate+'<small style="font-size:9px;color:var(--tx3)">/40</small></span>'
+      +'</div>'
+      +'<div class="srow">'
+      +'<span>🛡 安全飛行</span>'
+      +barFn(safety,30,safety>=20?'#00d8a8':safety>=10?'#e09818':'#d83838')
+      +'<span class="sv" style="color:'+(safety>=20?'#00d8a8':safety>=10?'#e09818':'#d83838')+'">'+safety+'<small style="font-size:9px;color:var(--tx3)">/30</small></span>'
+      +'</div>'
+      +'<div class="srow">'
+      +'<span>🛬 着陸品質</span>'
+      +barFn(ls,30,'#18c0e8')
+      +'<span class="sv" style="color:#18c0e8">'+ls+'<small style="font-size:9px;color:var(--tx3)">/30</small></span>'
+      +'</div>'
+      +'<div style="font-size:8px;color:var(--tx3);padding:4px 0;border-bottom:1px solid var(--bd)">'
+      +'OLS違反 ×'+olsViolCount+' (−'+(olsViolCount*5)+'pt) &nbsp;│&nbsp; 低高度警告 ×'+msaViolCount+' (−'+(msaViolCount*3)+'pt)'
+      +'</div>'
+      +'<div class="srow total"><span>合計スコア</span><span class="sv">'+total+' / 100</span></div>'
+      +'<div class="srow" style="border:none;padding-top:4px">'
+      +'<span style="font-size:9px;color:var(--tx3)">ベスト: '+bestScore+' ／ '+sessionHistory.length+'フライト</span>'
+      +'<span style="font-size:10px;color:var(--pu)">'+prev+'</span>'
+      +'</div>';
+  }
+  document.getElementById('session-overlay').classList.add('on');
+}
+
+function closeSession(keepOpen){
+  document.getElementById('session-overlay').classList.remove('on');
+  if(!keepOpen)setTimeout(function(){toggleFly();},100);
+}
+
+/* ── updateGamePanel: live 100-pt breakdown ── */
+var _origUGP=window.updateGamePanel;
+window.updateGamePanel=function(){
+  var p=document.getElementById('game-panel');
+  if(!p)return;
+  if(!flyOn){p.innerHTML='<div class="hn">飛行開始でスコア表示</div>';return;}
+  var gate=Math.min(40,missionsCompleted*10);
+  var safety=Math.max(0,30-olsViolCount*5-msaViolCount*3);
+  var unvisited=vpList.filter(function(v){return !v.visited;});
+  var m=Math.floor(flightSec/60),s2=flightSec%60;
+  var total=computeScore100();
+  var g=gradeFromScore(total);
+  p.innerHTML='<div style="font-family:var(--mono);font-size:9px;line-height:2;color:var(--tx2)">'
+    +'<div style="display:flex;align-items:baseline;gap:6px;margin-bottom:4px">'
+    +'<span style="font-size:20px;font-weight:700;color:'+g.col+'">'+total+'</span>'
+    +'<span style="font-size:11px;color:var(--tx2)">/100</span>'
+    +'<span style="font-size:14px;font-weight:700;color:'+g.col+'">['+g.ltr+']</span>'
+    +'</div>'
+    +'<div>🎯 ゲート: <span style="color:#f0c030">'+gate+'</span>/40'
+    +'<span style="font-size:8px;color:var(--tx3)"> ('+missionsCompleted+'/'+vpList.length+'通過)</span></div>'
+    +'<div>🛡 安全: <span style="color:'+(safety>=20?'var(--acg)':safety>=10?'var(--am)':'var(--rd)')+'">'+safety+'</span>/30'
+    +'<span style="font-size:8px;color:var(--tx3)"> (OLS×'+olsViolCount+' 低高度×'+msaViolCount+')</span></div>'
+    +'<div>🛬 着陸: <span style="color:var(--ac)">'+landingScore+'</span>/30</div>'
+    +'<div style="font-size:8px;color:var(--tx3);margin-top:2px">飛行時間: '+m+':'+String(s2).padStart(2,'0')+'</div>'
+    +(unvisited.length
+      ?'<div style="margin-top:3px">次: <span style="color:var(--acg)">'+(unvisited[0]&&unvisited[0].label||'—')+'</span></div>'
+      :'<div style="color:var(--gr)">✓ 全ゲート通過！</div>')
+    +'<div style="font-size:8px;color:var(--tx3);margin-top:4px;line-height:1.5">採点: ゲート×10 + 安全30 + 着陸30 = 100pt</div>'
+    +'</div>';
+};
+
+</script>
+<div id="session-overlay">
+  <div id="session-box">
+    <h2>── Flight Evaluation ──</h2>
+    <div class="grade-ring" id="sess-grade-ring">—</div>
+    <div id="sess-breakdown"></div>
+    <div style="display:flex;gap:10px;justify-content:center">
+      <button class="sbtn" onclick="closeSession(false)">▶ 再飛行</button>
+      <button class="sbtn" style="border-color:var(--acg);color:var(--acg)" onclick="closeSession(true)">✓ 閉じる</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
