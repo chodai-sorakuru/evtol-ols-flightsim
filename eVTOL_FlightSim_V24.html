@@ -394,6 +394,7 @@ canvas.dial{border-radius:50%;border:1.5px solid rgba(24,192,232,.2);box-shadow:
 #token-status{position:fixed;right:12px;top:54px;z-index:160;max-width:min(520px,90vw);padding:8px 12px;border-radius:5px;background:rgba(3,12,18,.94);border:1px solid rgba(94,234,255,.28);font-family:var(--ui);font-size:10px;color:#bcefff;display:none;box-shadow:0 8px 28px #000}
 #token-status.on{display:block}#token-status.error{border-color:#ff6670;color:#ffd0d3;background:rgba(48,4,8,.96)}#token-status.warn{border-color:#ffc45b;color:#ffe2a5;background:rgba(45,27,0,.96)}#token-status.ok{border-color:#62ffb1;color:#baffd9}
 .remember-token{display:flex;align-items:center;gap:4px;font-size:9px;color:var(--tx2);white-space:nowrap;margin-left:4px}.remember-token input{accent-color:#18c0e8}
+.managed-mapbox #tok,.managed-mapbox #remember-wrap,.managed-mapbox #manual-map-button{display:none}.managed-token-badge{display:none;color:#73f0b3;border:1px solid rgba(86,225,164,.45);background:rgba(20,98,69,.22);border-radius:3px;padding:2px 7px;font-size:8px;white-space:nowrap}.managed-mapbox .managed-token-badge{display:inline-flex}
 /* suppress the old lower dashboard while retaining its live DOM and warnings */
 #cockpit.on #panel,#cockpit.on #minimap,#cockpit.on #score-gauge-wrap,#cockpit.on #prox-indicator,#cockpit.on #phase-badge,#cockpit.on #score-panel{opacity:0;pointer-events:none}
 #cockpit.on #ahi-wrap{display:none!important}
@@ -467,8 +468,9 @@ canvas.dial{border-radius:50%;border:1.5px solid rgba(24,192,232,.2);box-shadow:
   <button class="hb" onclick="resetAll()">↺ リセット</button>
   <div class="ml"></div>
   <input class="tok" id="tok" type="password" autocomplete="off" placeholder="Mapbox Public Token (pk....)">
-  <label class="remember-token" title="チェックした場合のみ、このブラウザのlocalStorageへ保存します"><input type="checkbox" id="remember-token">このPCで記憶する</label>
-  <button class="hb" onclick="initMap()" style="margin-left:2px">地図起動</button>
+  <label id="remember-wrap" class="remember-token" title="チェックした場合のみ、このブラウザのlocalStorageへ保存します"><input type="checkbox" id="remember-token">このPCで記憶する</label>
+  <button id="manual-map-button" class="hb" onclick="initMap()" style="margin-left:2px">地図起動</button>
+  <span class="managed-token-badge">🔒 地図接続済み</span>
 </div>
 <div id="token-status" role="status" aria-live="polite"></div>
 
@@ -1068,11 +1070,20 @@ function classifyMapboxError(err){
   if(/network|failed to fetch|load failed|timeout|offline|connection|dns/.test(msg)||navigator.onLine===false)return ['Mapboxとの通信に失敗しました。インターネット接続、プロキシ、ファイアウォールを確認してください。','error'];
   return ['Mapboxの読み込み中にエラーが発生しました: '+(err?.message||err?.error?.message||'詳細不明'),'error'];
 }
-function initMap(){
+async function loadManagedMapbox(){
+  if(location.protocol==='file:')return false;
+  try{
+    setTokenStatus('安全な地図設定を読み込んでいます…','warn');
+    const res=await fetch('/api/mapbox-token',{method:'GET',credentials:'same-origin',cache:'no-store',headers:{'Accept':'application/json'}});
+    if(!res.ok)return false;const data=await res.json();if(!data||!/^pk\.[A-Za-z0-9._-]{20,}$/.test(data.token||''))return false;
+    document.body.classList.add('managed-mapbox');await initMap(data.token,true);return true;
+  }catch(e){return false;}
+}
+async function initMap(tokenOverride='',managed=false){
   if(location.protocol==='file:'){setTokenStatus('file:// からは起動できません。launch_sim.batを実行し、http://localhost:8080/ から開いてください。','error');return;}
-  const tok=document.getElementById('tok').value.trim();
+  const tok=(tokenOverride||document.getElementById('tok').value).trim();
   if(!/^pk\.[A-Za-z0-9._-]{20,}$/.test(tok)){setTokenStatus('Mapbox Public Tokenは pk. で始まる文字列を入力してください。Secret Token (sk.) は使用できません。','error');return;}
-  const remember=!!document.getElementById('remember-token')?.checked;
+  const remember=!managed&&!!document.getElementById('remember-token')?.checked;
   try{if(remember)localStorage.setItem('evtolsim_mapbox_pk',tok);else localStorage.removeItem('evtolsim_mapbox_pk');localStorage.setItem('evtolsim_remember_pk',remember?'1':'0');}catch(e){}
   if(map){try{map.remove();}catch(e){}map=null;}
   mapBootComplete=false;setTokenStatus('Mapboxへ接続しています…','warn');
@@ -3132,6 +3143,7 @@ function resetAll(){
   }
   // Wire curve detail visibility on load
   setTimeout(()=>{updateCurveDetailVis();},100);
+  if(location.protocol!=='file:')setTimeout(async()=>{const ok=await loadManagedMapbox();if(!ok)setTokenStatus('自動地図設定を利用できません。Public Tokenを入力して地図を起動してください。','warn',false);},180);
 
   log('eVTOL OLS FlightSim v6 Pilot Edition','i');
   log('手順: ① Tokenで地図起動 ② スタイル/環境選択 ③ OLS設置 ④ VP設置 ⑤ 飛行開始','i');
