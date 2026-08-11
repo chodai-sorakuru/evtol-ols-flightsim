@@ -325,12 +325,6 @@ canvas.dial{border-radius:50%;border:1.5px solid rgba(24,192,232,.2);box-shadow:
   width:92px;height:92px;border-radius:50%;border:3px solid;
   font-size:48px;font-weight:700;font-family:var(--mono);margin:6px auto 14px;
 }
-.flight-gate-marker{position:relative;width:54px;height:54px;border:5px solid #45e8ff;border-radius:50%;box-sizing:border-box;background:rgba(5,20,30,.08);box-shadow:0 0 7px #45e8ff,0 0 18px rgba(69,232,255,.75),inset 0 0 10px rgba(69,232,255,.45);color:#fff;font:700 11px/1 var(--mono);display:flex;align-items:center;justify-content:center;transform:translateZ(0)}
-.flight-gate-marker::before{content:"";position:absolute;inset:5px;border:1px solid rgba(255,255,255,.6);border-radius:50%}
-.flight-gate-marker.next{border-color:#ffd84a;box-shadow:0 0 8px #ffd84a,0 0 22px rgba(255,216,74,.85),inset 0 0 10px rgba(255,216,74,.5);animation:gatePulse 1.25s ease-in-out infinite}
-.flight-gate-marker.visited{border-color:#54e69c;opacity:.38;box-shadow:0 0 8px rgba(84,230,156,.55)}
-.flight-gate-marker .gate-alt{position:absolute;top:58px;left:50%;transform:translateX(-50%);white-space:nowrap;padding:2px 5px;border-radius:4px;background:rgba(2,12,20,.82);color:#aeefff;font-size:8px}
-@keyframes gatePulse{50%{filter:brightness(1.35)}}
 .srow{display:flex;justify-content:space-between;align-items:center;
   font-family:var(--mono);font-size:10px;color:var(--tx2);
   border-bottom:1px solid var(--bd);padding:5px 0;gap:12px}
@@ -526,7 +520,6 @@ canvas.dial{border-radius:50%;border:1.5px solid rgba(24,192,232,.2);box-shadow:
   <div class="logo">eVTOL <em>OLS</em> V24 <b>AI Cockpit Edition</b></div>
   <div class="hd"></div>
   <button class="hb" id="b-ols" onclick="startPick('ols')">＋OLS</button>
-  <button class="hb" id="b-vp"  onclick="startPick('vp')">＋VP</button>
   <button class="hb" id="b-start" onclick="startPick('start')" title="任意の開始地点を設定">＋開始点</button>
   <div class="hd"></div>
   <button class="hb fly" id="b-fly" onclick="toggleFly()">🚁 飛行開始</button>
@@ -675,12 +668,6 @@ canvas.dial{border-radius:50%;border:1.5px solid rgba(24,192,232,.2);box-shadow:
     <div class="sbody" id="ols-list"><div class="hn">未設置</div></div>
   </div>
 
-  <!-- VP一覧 -->
-  <div class="sec">
-    <div class="sh" onclick="tgl(this)"><span>🏢 バーティポート (<span id="vpN">0</span>)</span><span class="ar">▾</span></div>
-    <div class="sbody" id="vp-list"><div class="hn">未設置</div></div>
-  </div>
-
   <!-- 機体設定 -->
   <div class="sec">
     <div class="sh" onclick="tgl(this)"><span>🚁 機体 / 飛行設定</span><span class="ar">▾</span></div>
@@ -710,7 +697,7 @@ canvas.dial{border-radius:50%;border:1.5px solid rgba(24,192,232,.2);box-shadow:
     <div class="sbody">
       <div class="fi"><label>ゲーム目的</label>
         <select id="game-mode" onchange="updateGamePanel()">
-          <option value="gate" selected>VPゲートを順に通過</option>
+          <option value="gate" selected>OLSコースのリングを順に通過</option>
           <option value="approach">OLS進入面を見ながら低速進入</option>
           <option value="free">自由飛行・空間確認</option>
         </select>
@@ -720,7 +707,7 @@ canvas.dial{border-radius:50%;border:1.5px solid rgba(24,192,232,.2);box-shadow:
         <div class="fi"><label>通過上限高度(m AGL)</label><input type="number" id="gate-alt" value="120" min="20" max="500" step="10"></div>
       </div>
       <div class="g2">
-        <div class="fi"><label>コリドー幅(m)</label><input type="number" id="corridor-width" value="180" min="80" max="500" step="20" onchange="scheduleActiveTrainingCourseRebuild()"></div>
+        <div class="fi"><label>チューブ直径(m)</label><input type="number" id="corridor-width" value="44" min="30" max="120" step="2" onchange="scheduleActiveTrainingCourseRebuild()"></div>
         <div class="fi"><label>通過ゲート数</label><input type="number" id="course-gates" value="9" min="6" max="12" step="1" onchange="scheduleActiveTrainingCourseRebuild()"></div>
       </div>
       <div class="g2">
@@ -734,7 +721,6 @@ canvas.dial{border-radius:50%;border:1.5px solid rgba(24,192,232,.2);box-shadow:
         </div>
       </div>
       <button class="btn pr full" onclick="setupTrainingScenario()">🎯 OLS連動の約5分周遊コースを作成</button>
-      <button class="btn full" onclick="setupFixedRandomScenario()">固定ランダムコースを作成</button>
       <div class="hn" style="margin-top:4px">目的は操縦技能評価ではなく、FATO、進入面、転移面、周辺空間の位置関係をゲーム感覚で体験することです。</div>
     </div>
   </div>
@@ -1173,6 +1159,19 @@ function getStyle(){
   const v=document.getElementById('mstyle').value;
   return v==='standard'?'mapbox://styles/mapbox/standard':v;
 }
+const MAIN_MAP_LABEL_OPTIONS=['showPlaceLabels','showPointOfInterestLabels','showRoadLabels','showTransitLabels'];
+function hideMainMapLabels(){
+  if(!map||!map.isStyleLoaded())return;
+  MAIN_MAP_LABEL_OPTIONS.forEach(key=>{try{map.setConfigProperty('basemap',key,false);}catch(e){}});
+  try{
+    (map.getStyle()?.layers||[]).forEach(layer=>{
+      if(layer.type!=='symbol')return;
+      const hasText=layer.layout&&layer.layout['text-field']!=null;
+      const looksLikeLabel=/label|shield|road-number|poi|place|transit/i.test(layer.id||'');
+      if(hasText||looksLikeLabel){try{map.setLayoutProperty(layer.id,'visibility','none');}catch(e){}}
+    });
+  }catch(e){}
+}
 let mapBootTimer=null,mapBootComplete=false;
 function setTokenStatus(message,type='warn',sticky=true){
   const el=document.getElementById('token-status');if(!el)return;
@@ -1231,7 +1230,8 @@ async function initMap(tokenOverride='',managed=false){
   mapboxgl.accessToken=tok;
   map=new mapboxgl.Map({
     container:'map',style:getStyle(),
-    center:[139.77,35.68],zoom:14.5,pitch:62,bearing:-18,antialias:true,maxPitch:85
+    center:[139.77,35.68],zoom:14.5,pitch:62,bearing:-18,antialias:true,maxPitch:85,
+    config:{basemap:{showPlaceLabels:false,showPointOfInterestLabels:false,showRoadLabels:false,showTransitLabels:false}}
   });
   map.on('load',()=>{mapBootComplete=true;if(mapBootTimer)clearTimeout(mapBootTimer);setTokenStatus('Mapboxの読み込みが完了しました。','ok',false);onLoad();});
   map.on('error',e=>{const out=classifyMapboxError(e);setTokenStatus(out[0],out[1]);log('MapError:'+(e.error?.message||e.message||'unknown'),'e');});
@@ -1243,6 +1243,7 @@ async function initMap(tokenOverride='',managed=false){
 }
 
 function onLoad(){
+  hideMainMapLabels();
   /* Terrain */
   if(!map.getSource('mb-dem')){
     map.addSource('mb-dem',{type:'raster-dem',url:'mapbox://mapbox.mapbox-terrain-dem-v1',tileSize:512,maxzoom:14});
@@ -1295,7 +1296,7 @@ function onLoad(){
   olsList.forEach(o=>renderOLS3D(o));
   fst('準備完了');
   log('地図起動完了','ok');
-  log('OLS設置→VP設置→飛行開始','i');
+  log('OLS設置→OLS連動コース作成→飛行開始','i');
   changeCameraMode();
 }
 
@@ -1380,19 +1381,16 @@ function startPick(m){
   if(!map){alert('地図を起動してください');return;}
   pickMode=m;
   document.getElementById('b-ols').classList.toggle('pk',m==='ols');
-  document.getElementById('b-vp').classList.toggle('pk',m==='vp');
   const bs=document.getElementById('b-start');if(bs)bs.classList.toggle('pk',m==='start');
   map.getCanvas().style.cursor='crosshair';
-  log(m==='ols'?'OLS起点クリック…':m==='vp'?'VP設置クリック…':'飛行開始地点をクリック…','i');
+  log(m==='ols'?'OLS起点クリック…':'飛行開始地点をクリック…','i');
   const handler=(e)=>{
     const{lng,lat}=e.lngLat;
     if(pickMode==='ols')addOLS(lat,lng);
-    else if(pickMode==='vp')addVP(lat,lng);
     else if(pickMode==='start')setStartPoint(lat,lng);
     pickMode=null;
     map.getCanvas().style.cursor='';
     document.getElementById('b-ols').classList.remove('pk');
-    document.getElementById('b-vp').classList.remove('pk');
     if(bs)bs.classList.remove('pk');
     map.off('click',handler);
   };
@@ -1897,27 +1895,23 @@ function olsHAt(distM,p){
 }
 
 /* ═══════════════════════════════════════════════════════
-   VERTIPORT
+   OLS TRAINING GATES
    ═══════════════════════════════════════════════════════ */
 function addVP(lat,lng,options={}){
-  const id=uid(),n=vpList.length+1,label=options.label||`VP-${n}`;
-  const el=document.createElement('div');
+  const id=uid(),n=vpList.length+1,label=options.label||`リング${n}`;
   const targetAlt=Number.isFinite(options.targetAlt)?options.targetAlt:null;
-  el.className='flight-gate-marker';
-  el.innerHTML=`<span>${n}</span>${targetAlt!==null?`<span class="gate-alt">${Math.round(targetAlt)}m</span>`:''}`;
-  const mkr=new mapboxgl.Marker({element:el,pitchAlignment:'viewport',rotationAlignment:'viewport',occludedOpacity:.18}).setLngLat([lng,lat]);
-  if(targetAlt!==null&&typeof mkr.setAltitude==='function')mkr.setAltitude(targetAlt);
-  mkr.addTo(map);
-  vpList.push({id,lat,lng,label,mkr,el,visited:false,targetAlt,courseGate:!!options.courseGate,
+  // 旧DOMウェイポイントは使わず、ゲートはThree.jsの立体リングだけで描画する。
+  vpList.push({id,lat,lng,label,mkr:null,el:null,visited:false,targetAlt,courseGate:true,
     courseIndex:Number.isFinite(options.courseIndex)?options.courseIndex:null,phase:options.phase||null});updateVPList();
   if(!options.silent)log(`${label} 設置 (${lat.toFixed(4)},${lng.toFixed(4)})`,'ok');
 }
 function updateVPList(){
   const b=document.getElementById('vp-list');
-  document.getElementById('vpN').textContent=vpList.length;
-  if(!vpList.length){b.innerHTML='<div class="hn">未設置</div>';return;}
+  const n=document.getElementById('vpN');if(n)n.textContent=vpList.length;
   const next=vpList.find(v=>!v.visited);
   vpList.forEach(v=>{if(v.el){v.el.classList.toggle('visited',v.visited);v.el.classList.toggle('next',v===next);}});
+  if(!b)return;
+  if(!vpList.length){b.innerHTML='<div class="hn">未設置</div>';return;}
   b.innerHTML=vpList.map(v=>`
     <div style="display:flex;align-items:center;gap:4px;font-size:9px;padding:2px 0;border-bottom:1px solid var(--bd)">
       <span style="width:8px;height:8px;border-radius:2px;background:${v.visited?'#10b060':'#9070e0'};flex-shrink:0"></span>
@@ -3174,7 +3168,7 @@ function updateTrainingHUD(){
     else if(H.alt>altMax)showInstructor('ゲート高度より高めです。↓でパワーを抜き、前方を見ながら降下してください。',2200,'warn');
   }
 }
-let TRAINING_CORRIDOR={coords:[],polygon:[],widthM:180,seed:0,base:null,sourceOLSId:null,
+let TRAINING_CORRIDOR={coords:[],polygon:[],widthM:44,seed:0,base:null,sourceOLSId:null,
   departureHdg:0,arrivalHdg:0,altBandFt:[1000,1500],lenM:0,estMin:0,mode:null};
 function buildCorridorPolygon(coords,widthM){
   if(coords.length<2)return [];
@@ -3216,66 +3210,48 @@ function renderTrainingCorridor3D(){
   removeTrainingCorridor3D();
   if(!map||!map.isStyleLoaded()||TRAINING_CORRIDOR.coords.length<2)return;
   const route=TRAINING_CORRIDOR.coords.map(p=>[p[0],p[1],Number.isFinite(p[2])?p[2]:80]);
-  const widthM=TRAINING_CORRIDOR.widthM;
-  const gateRadius=clamp(+(document.getElementById('gate-radius')?.value||85)*.42,24,42);
+  const widthM=clamp(TRAINING_CORRIDOR.widthM||44,30,120),corridorRadius=widthM/2;
+  const gateRadius=clamp(+(document.getElementById('gate-radius')?.value||85)*.42,28,42);
+  const base=TRAINING_CORRIDOR.base||{lat:route[0][1],lng:route[0][0]};
+  const ref=mapboxgl.MercatorCoordinate.fromLngLat({lng:base.lng,lat:base.lat},0),scale=ref.meterInMercatorCoordinateUnits();
+  const toLocal=p=>new THREE.Vector3(
+    (p[0]-base.lng)*D2R*RE*Math.cos(base.lat*D2R),
+    (p[1]-base.lat)*D2R*RE,
+    corridorAltMSL(p)
+  );
+  const points=route.map(toLocal),curve=new THREE.CatmullRomCurve3(points,false,'centripetal',.25);
+  const tubularSegments=Math.max(220,Math.min(480,route.length*2));
   const layer={id:'training-corridor-air',type:'custom',renderingMode:'3d',
     onAdd(m,gl){
-      this._map=m;this._cam=new THREE.Camera();this._scn=new THREE.Scene();
-      const mc=(lng,lat,alt)=>{const q=ll2mc(lat,lng,alt);return new THREE.Vector3(q.x,q.y,q.z);};
-      const verts=[],idx=[],leftRail=[],rightRail=[],topLeftRail=[],topRightRail=[],centerRail=[],cross=[];
-      const corridorHalfHeight=clamp(gateRadius*.72,20,30);
-      route.forEach((p,i)=>{
-        const prev=route[Math.max(0,i-1)],next=route[Math.min(route.length-1,i+1)];
-        const heading=brg(prev[1],prev[0],next[1],next[0]);
-        const lp=dest(p[1],p[0],(heading+270)%360,widthM/2),rp=dest(p[1],p[0],(heading+90)%360,widthM/2);
-        const ground=Math.max(corridorTerrainMSL(p[1],p[0]),corridorTerrainMSL(lp.lat,lp.lng),corridorTerrainMSL(rp.lat,rp.lng));
-        const centerAlt=ground+(Number.isFinite(p[2])?p[2]:80),halfH=Math.min(corridorHalfHeight,Math.max(12,(p[2]||80)-12));
-        const lf=mc(lp.lng,lp.lat,centerAlt-halfH),rf=mc(rp.lng,rp.lat,centerAlt-halfH),lt=mc(lp.lng,lp.lat,centerAlt+halfH),rt=mc(rp.lng,rp.lat,centerAlt+halfH),c=mc(p[0],p[1],centerAlt);
-        cross.push({lf,rf,lt,rt});leftRail.push(mc(lp.lng,lp.lat,centerAlt));rightRail.push(mc(rp.lng,rp.lat,centerAlt));topLeftRail.push(lt);topRightRail.push(rt);centerRail.push(c);
-        for(const v of[lf,rf,lt,rt])verts.push(v.x,v.y,v.z);
-        if(i<route.length-1){
-          const b=i*4,n=b+4;
-          idx.push(b,b+1,n+1,b,n+1,n);             // floor
-          idx.push(b+2,n+3,b+3,b+2,n+2,n+3);     // ceiling
-          idx.push(b,n,n+2,b,n+2,b+2);           // left translucent wall
-          idx.push(b+1,b+3,n+3,b+1,n+3,n+1);     // right translucent wall
-        }
-      });
-      const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(verts,3));geo.setIndex(idx);
-      const mat=new THREE.MeshBasicMaterial({color:0x25c7ec,transparent:true,opacity:.14,side:THREE.DoubleSide,depthWrite:false,depthTest:false});
-      const ribbon=new THREE.Mesh(geo,mat);ribbon.renderOrder=1100;this._scn.add(ribbon);
-      const addRail=(pts,color,opacity)=>{const g=new THREE.BufferGeometry().setFromPoints(pts),lm=new THREE.LineBasicMaterial({color,transparent:true,opacity,depthWrite:false,depthTest:false});const line=new THREE.Line(g,lm);line.renderOrder=1101;this._scn.add(line);};
-      addRail(leftRail,0x63e7ff,.85);addRail(rightRail,0x63e7ff,.85);addRail(topLeftRail,0xa5f3ff,.7);addRail(topRightRail,0xa5f3ff,.7);addRail(centerRail,0xffffff,.92);
+      this._map=m;this._ref=ref;this._scale=scale;this._cam=new THREE.Camera();this._scn=new THREE.Scene();
+      const tubeMat=new THREE.MeshBasicMaterial({color:0x22c8ee,transparent:true,opacity:.105,side:THREE.DoubleSide,depthWrite:false,depthTest:false});
+      const tube=new THREE.Mesh(new THREE.TubeGeometry(curve,tubularSegments,corridorRadius,16,false),tubeMat);tube.renderOrder=1100;this._scn.add(tube);
+      const coreMat=new THREE.MeshBasicMaterial({color:0xc8f9ff,transparent:true,opacity:.66,depthWrite:false,depthTest:false});
+      const core=new THREE.Mesh(new THREE.TubeGeometry(curve,tubularSegments,1.15,8,false),coreMat);core.renderOrder=1101;this._scn.add(core);
       this._rings=[];
       for(const gate of vpList.filter(v=>v.courseGate)){
         let i=Number.isFinite(gate.courseIndex)?Math.round(gate.courseIndex):-1;
         if(i<0||i>=route.length)i=route.reduce((best,p,j)=>hav(gate.lat,gate.lng,p[1],p[0])<best.d?{i:j,d:hav(gate.lat,gate.lng,p[1],p[0])}:best,{i:0,d:Infinity}).i;
         i=Math.max(1,Math.min(route.length-2,i));
-        const p=[gate.lng,gate.lat,Number.isFinite(gate.targetAlt)?gate.targetAlt:route[i][2]],prev=route[i-1],next=route[i+1];
-        const heading=brg(prev[1],prev[0],next[1],next[0]),baseAlt=corridorAltMSL(p),segments=64,thick=2.6;
-        const gv=[],gi=[];
-        for(let s=0;s<segments;s++){
-          const a0=s/segments*Math.PI*2,a1=(s+1)/segments*Math.PI*2;
-          for(const a of[a0,a1])for(const rr of[gateRadius-thick,gateRadius+thick]){
-            const lateral=Math.cos(a)*rr,b=(heading+(lateral<0?270:90))%360,q=dest(p[1],p[0],b,Math.abs(lateral)),v=mc(q.lng,q.lat,baseAlt+Math.sin(a)*rr);gv.push(v.x,v.y,v.z);
-          }
-          const b=s*4;gi.push(b,b+1,b+3,b,b+3,b+2);
-        }
-        const gg=new THREE.BufferGeometry();gg.setAttribute('position',new THREE.Float32BufferAttribute(gv,3));gg.setIndex(gi);
-        const gm=new THREE.MeshBasicMaterial({color:0x45e8ff,transparent:true,opacity:.64,side:THREE.DoubleSide,depthWrite:false,depthTest:false});
-        const ring=new THREE.Mesh(gg,gm);ring.renderOrder=1102;this._scn.add(ring);this._rings.push({mesh:ring,mat:gm,gate});
+        const p=toLocal([gate.lng,gate.lat,Number.isFinite(gate.targetAlt)?gate.targetAlt:route[i][2]]),prev=toLocal(route[i-1]),next=toLocal(route[i+1]);
+        const tangent=next.clone().sub(prev).normalize(),group=new THREE.Group();group.position.copy(p);group.lookAt(p.clone().add(tangent));
+        const glowMat=new THREE.MeshBasicMaterial({color:0x45e8ff,transparent:true,opacity:.15,depthWrite:false,depthTest:false,blending:THREE.AdditiveBlending});
+        const ringMat=new THREE.MeshBasicMaterial({color:0x45e8ff,transparent:true,opacity:.72,depthWrite:false,depthTest:false});
+        const glow=new THREE.Mesh(new THREE.TorusGeometry(gateRadius,5.1,12,112),glowMat),ring=new THREE.Mesh(new THREE.TorusGeometry(gateRadius,2.2,18,112),ringMat);
+        glow.renderOrder=1102;ring.renderOrder=1103;group.add(glow,ring);this._scn.add(group);this._rings.push({group,ringMat,glowMat,gate});
       }
-      this._ren=new THREE.WebGLRenderer({canvas:m.getCanvas(),context:gl,antialias:true});this._ren.autoClear=false;
+      this._ren=new THREE.WebGLRenderer({canvas:m.getCanvas(),context:gl,antialias:true});this._ren.autoClear=false;this._ren.sortObjects=true;
     },
     render(gl,mtx){
-      this._cam.projectionMatrix=new THREE.Matrix4().fromArray(mtx);
-      const next=vpList.find(v=>v.courseGate&&!v.visited),pulse=.82+.16*Math.sin(performance.now()/180);
+      const mapMatrix=new THREE.Matrix4().fromArray(mtx),localMatrix=new THREE.Matrix4().makeTranslation(this._ref.x,this._ref.y,0).scale(new THREE.Vector3(this._scale,-this._scale,this._scale));
+      this._cam.projectionMatrix=mapMatrix.multiply(localMatrix);
+      const next=vpList.find(v=>v.courseGate&&!v.visited),pulse=1+.035*Math.sin(performance.now()/170);
       (this._rings||[]).forEach(R=>{
-        if(R.gate.visited){R.mat.color.setHex(0x10b060);R.mat.opacity=.28;}
-        else if(R.gate===next){R.mat.color.setHex(0xf0c030);R.mat.opacity=pulse;}
-        else{R.mat.color.setHex(0x45e8ff);R.mat.opacity=.58;}
+        if(R.gate.visited){R.ringMat.color.setHex(0x18b878);R.glowMat.color.setHex(0x18b878);R.ringMat.opacity=.26;R.glowMat.opacity=.05;R.group.scale.setScalar(1);}
+        else if(R.gate===next){R.ringMat.color.setHex(0xffcf42);R.glowMat.color.setHex(0xffb526);R.ringMat.opacity=.98;R.glowMat.opacity=.28;R.group.scale.setScalar(pulse);}
+        else{R.ringMat.color.setHex(0x45e8ff);R.glowMat.color.setHex(0x45e8ff);R.ringMat.opacity=.65;R.glowMat.opacity=.13;R.group.scale.setScalar(1);}
       });
-      this._ren.resetState();this._ren.render(this._scn,this._cam);
+      this._ren.resetState();this._ren.render(this._scn,this._cam);if(flyOn)this._map.triggerRepaint();
     }
   };
   map.addLayer(layer);
@@ -3293,21 +3269,14 @@ function setTrainingCorridor(coords,widthM,seed=TRAINING_CORRIDOR.seed||0,base=T
   updateV24GPS(true);
 }
 function clearTrainingCorridor(){
-  const widthM=TRAINING_CORRIDOR.widthM||180,altBandFt=TRAINING_CORRIDOR.altBandFt||[1000,1500];
+  const widthM=TRAINING_CORRIDOR.widthM||44,altBandFt=TRAINING_CORRIDOR.altBandFt||[1000,1500];
   TRAINING_CORRIDOR={coords:[],polygon:[],widthM,seed:0,base:null,sourceOLSId:null,departureHdg:0,arrivalHdg:0,altBandFt,lenM:0,estMin:0,mode:null};
   ensureTrainingCorridorLayers();map?.getSource('training-corridor')?.setData(corridorFeatureCollection());removeTrainingCorridor3D();updateV24GPS(true);
 }
 
 function clearCourseGates(){
-  vpList.filter(v=>v.courseGate).forEach(v=>v.mkr.remove());
+  vpList.filter(v=>v.courseGate).forEach(v=>v.mkr?.remove());
   vpList=vpList.filter(v=>!v.courseGate);missionsCompleted=0;gateScore=0;updateVPList();updateGamePanel();
-}
-
-function fixedCourseRandom(seed){
-  let a=seed>>>0;return()=>{a=(a+0x6D2B79F5)>>>0;let t=a;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return((t^(t>>>14))>>>0)/4294967296;};
-}
-function fixedCourseSeed(base,totalGates,corridorWidth){
-  return (Math.imul(Math.round((base.lat+90)*10000),73856093)^Math.imul(Math.round((base.lng+180)*10000),19349663)^Math.imul(totalGates,83492791)^Math.round(corridorWidth))>>>0;
 }
 
 function courseSmooth01(t){t=clamp(t,0,1);return t*t*(3-2*t);}
@@ -3357,7 +3326,7 @@ function buildOLSAlignedCourseData(ols){
 }
 
 function applyOLSAlignedTrainingCourse(ols,announce=true){
-  const data=buildOLSAlignedCourseData(ols),width=clamp(+(document.getElementById('corridor-width')?.value||180),80,500);
+  const data=buildOLSAlignedCourseData(ols),width=clamp(+(document.getElementById('corridor-width')?.value||44),30,120);
   clearCourseGates();data.gates.forEach(g=>addVP(g.lat,g.lng,{label:g.label,targetAlt:g.targetAlt,courseGate:true,courseIndex:g.courseIndex,phase:g.phase,silent:true}));
   setTrainingCorridor(data.coords,width,0,data.base,{...data,mode:'ols'});missionsCompleted=0;gateScore=0;updateGamePanel();
   if(announce)showInstructor(`OLS方位同期コース: DIR1 ${Math.round(data.departureHdg)}°で離陸し、DIR2から最終進入。巡航${data.altBandFt[0]}〜${data.altBandFt[1]}ft、リング${data.gates.length}個を順番に通過してください。`,7200,'info');
@@ -3376,40 +3345,9 @@ function setupTrainingScenario(){
   if(flyOn)toggleFly();
   const c=TRAINING_CORRIDOR.base||map.getCenter(),base={lat:c.lat,lng:c.lng};
   olsList.slice().forEach(o=>removeOLS(o.id));
-  vpList.forEach(v=>v.mkr.remove());vpList=[];updateVPList();
+  vpList.forEach(v=>v.mkr?.remove());vpList=[];updateVPList();
   clearTrainingCorridor();const ols=addOLS(base.lat,base.lng);setStartPoint(base.lat,base.lng);
   try{applyOLSAlignedTrainingCourse(ols,true);}catch(e){log('OLS周遊コース: '+e.message,'e');alert('コースを生成できませんでした: '+e.message);}
-}
-
-function setupFixedRandomScenario(){
-  if(!map){alert('先にMapboxトークンを入力して地図を起動してください');return;}
-  if(flyOn)toggleFly();
-  const c=TRAINING_CORRIDOR.base||map.getCenter(),base={lat:c.lat,lng:c.lng};
-  olsList.slice().forEach(o=>removeOLS(o.id));vpList.forEach(v=>v.mkr.remove());vpList=[];updateVPList();clearTrainingCorridor();
-  addOLS(base.lat,base.lng);setStartPoint(base.lat,base.lng);
-  const totalGates=clamp(Math.round(+(document.getElementById('course-gates')?.value||9)),6,12);
-  const gateCount=totalGates-1;
-  const corridorWidth=clamp(+(document.getElementById('corridor-width')?.value||180),80,500);
-  const courseSeed=fixedCourseSeed(base,totalGates,corridorWidth),rnd=fixedCourseRandom(courseSeed);
-  const rotation=rnd()*360;
-  const direction=rnd()<.5?-1:1;
-  const gates=[];
-  for(let i=0;i<gateCount;i++){
-    const angle=rotation+direction*(i*360/gateCount+(rnd()-.5)*16);
-    const radius=760+rnd()*360;
-    const p=dest(base.lat,base.lng,(angle+360)%360,radius);
-    const wave=Math.sin(i/gateCount*Math.PI*2+rotation*Math.PI/180);
-    gates.push({...p,targetAlt:Math.round(95+wave*30+rnd()*24)});
-  }
-  gates.forEach((p,i)=>addVP(p.lat,p.lng,{label:`リング${i+1}`,targetAlt:p.targetAlt,courseGate:true,courseIndex:i+1,phase:'CRUISE',silent:true}));
-  const finish=dest(base.lat,base.lng,(rotation-direction*18+360)%360,230);
-  addVP(finish.lat,finish.lng,{label:`リング${gates.length+1}`,targetAlt:55,courseGate:true,courseIndex:gates.length+1,phase:'APPROACH',silent:true});
-  const routeLength=gates.reduce((sum,p,i)=>{const prev=i?gates[i-1]:base;return sum+hav(prev.lat,prev.lng,p.lat,p.lng);},0)+hav(gates.at(-1).lat,gates.at(-1).lng,finish.lat,finish.lng);
-  setTrainingCorridor([[base.lng,base.lat,45],...gates.map(p=>[p.lng,p.lat,p.targetAlt]),[finish.lng,finish.lat,55]],corridorWidth,courseSeed,base,
-    {mode:'fixed',departureHdg:brg(base.lat,base.lng,gates[0].lat,gates[0].lng),lenM:routeLength,estMin:routeLength/(82/3.6)/60+1.2});
-  updateGamePanel();
-  showInstructor(`固定ランダムコースを作成しました。${vpList.length}個のリングを順番に通過してください。`,5200,'info');
-  log(`5分固定コース: 空中コリドー幅${corridorWidth}m / リング×${vpList.length} / 約${(routeLength/1000).toFixed(1)}km / seed ${courseSeed}`,'ok');
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -3517,7 +3455,7 @@ function resetAll(){
   V23_ENERGY=100;V23_LAST_T=0;
   if(flyOn)toggleFly();
   olsList.slice().forEach(o=>removeOLS(o.id));
-  vpList.forEach(v=>v.mkr.remove());vpList=[];updateVPList();
+  vpList.forEach(v=>v.mkr?.remove());vpList=[];updateVPList();
   if(START.marker)START.marker.remove();START.lat=null;START.lng=null;START.marker=null;
   clearTrainingCorridor();
   score=0;missionsCompleted=0;olsViolCount=0;msaViolCount=0;flightSec=0;
@@ -3550,7 +3488,7 @@ function resetAll(){
   },180);
 
   log('eVTOL OLS FlightSim v6 Pilot Edition','i');
-  log('手順: ① Tokenで地図起動 ② スタイル/環境選択 ③ OLS設置 ④ VP設置 ⑤ 飛行開始','i');
+  log('手順: ① 地図起動 ② OLS設置 ③ OLS連動コース作成 ④ 飛行開始','i');
   log('カメラ: ピッチ/ロール/ヨーで視点が連動します','i');
 })();
 
