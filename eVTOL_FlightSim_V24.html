@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>eVTOL OLS FlightSim V24 — AI Cockpit Edition</title>
 <script src="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js"></script>
 <link href="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css" rel="stylesheet">
@@ -433,6 +433,61 @@ canvas.dial{border-radius:50%;border:1.5px solid rgba(24,192,232,.2);box-shadow:
 #v24-ai-shell{filter:brightness(1.16) saturate(.88) contrast(.94) drop-shadow(0 7px 18px rgba(14,58,78,.40))}
 .v23-mfd{background:radial-gradient(circle at 50% 10%,#17485a,#06151d 70%);box-shadow:inset 0 0 28px rgba(40,216,255,.20),0 0 16px rgba(86,207,238,.16)}
 @media(max-width:720px){#access-plan{padding:10px}.access-shell{padding:20px 15px;border-radius:14px}.access-title{font-size:21px}.plan-grid{grid-template-columns:1fr}.plan-copy{min-height:0}}
+
+/* Device-specific layout: desktop / tablet / phone */
+@media(min-width:1200px){
+  #root:not(.flight-wide){grid-template-columns:clamp(270px,18vw,320px) 1fr}
+  #hdr{min-height:34px}.hb{padding-inline:8px}.sbody{padding:6px 8px}
+}
+@media(min-width:701px) and (max-width:1199px){
+  #root:not(.flight-wide){grid-template-columns:240px 1fr}
+  #hdr{overflow-x:auto;scrollbar-width:none;min-height:36px;padding-inline:max(4px,env(safe-area-inset-left))}
+  #hdr::-webkit-scrollbar{display:none}.hb,.msel{min-height:26px;font-size:9.5px}
+  body.v24-touch-flight #v23-mfd-row{top:4%;bottom:auto;width:min(78%,780px);height:26%;gap:2%}
+  body.v24-touch-flight #v23-progress{bottom:31%}body.v24-touch-flight #instructor{bottom:34%}
+  body.v24-touch-flight .v24-touch-stick{width:118px;height:118px}
+  body.v24-touch-flight .v24-touch-power{height:142px}
+}
+@media(max-width:700px){
+  html,body{font-size:12px;min-height:100%;height:100%;height:100dvh}
+  #root:not(.flight-wide){grid-template-columns:1fr;grid-template-rows:40px minmax(240px,50dvh) minmax(0,1fr) 18px;height:100dvh}
+  #root:not(.flight-wide) #hdr{grid-column:1;grid-row:1}
+  #root:not(.flight-wide) #mw{grid-column:1;grid-row:2}
+  #root:not(.flight-wide) #sb{grid-column:1;grid-row:3;border-right:0;border-top:1px solid var(--bd2);box-shadow:0 -8px 24px rgba(23,93,122,.10)}
+  #root:not(.flight-wide) #ft{grid-column:1;grid-row:4}
+  #root.flight-wide{grid-template-columns:1fr;grid-template-rows:40px minmax(0,1fr) 18px;height:100dvh}
+  #root.flight-wide #sb{display:none}#root.flight-wide #hdr{grid-column:1;grid-row:1}#root.flight-wide #mw{grid-column:1;grid-row:2}#root.flight-wide #ft{grid-column:1;grid-row:3}
+  #hdr{overflow-x:auto;scrollbar-width:none;gap:4px;padding:3px max(5px,env(safe-area-inset-left));overscroll-behavior-x:contain}
+  #hdr::-webkit-scrollbar{display:none}.logo{font-size:10px}.logo b,.hd{display:none}
+  .hb,.msel{min-height:30px;padding:3px 8px;font-size:10px}.tok{min-width:150px;height:30px}
+  .sh{min-height:29px;padding:5px 8px;font-size:9px}.sbody{padding:7px 8px}.fi{margin-bottom:6px}
+  .fi label{font-size:9.5px}.fi input,.fi select{min-height:32px;padding:5px 7px;font-size:12px}.btn{min-height:32px;font-size:11px}
+  #ft{white-space:nowrap;overflow:hidden}.mapboxgl-ctrl-bottom-left,.mapboxgl-ctrl-bottom-right{transform:scale(.8);transform-origin:bottom}
+  body.v24-touch-flight #v24-ai-shell{object-fit:cover;opacity:.56}
+  body.v24-touch-flight #v23-mfd-row{top:4%;bottom:auto;width:96%;height:27%;gap:1.2%;grid-template-columns:1fr 1.16fr 1fr}
+  body.v24-touch-flight .v23-mfd{padding:4px;border-radius:5px}body.v24-touch-flight .v23-head{font-size:6px;margin-bottom:2px;padding-bottom:2px}
+  body.v24-touch-flight .v24-pfd{grid-template-columns:25px 1fr 25px 28px;gap:2px}.v24-gps{height:55px}
+  body.v24-touch-flight #v23-ribbon{top:32%;font-size:7px}body.v24-touch-flight #v23-alert{top:37%;font-size:8px}
+  body.v24-touch-flight #v23-progress{bottom:auto;top:41%}body.v24-touch-flight #instructor{bottom:30%;max-width:78vw;font-size:8px}
+  body.v24-touch-flight .v24-touch-stick{left:max(8px,env(safe-area-inset-left));bottom:max(16px,env(safe-area-inset-bottom));width:104px;height:104px}
+  body.v24-touch-flight .v24-touch-knob{width:36px;height:36px}
+  body.v24-touch-flight .v24-touch-power{right:max(8px,env(safe-area-inset-right));bottom:max(16px,env(safe-area-inset-bottom));width:58px;height:126px}
+  body.v24-touch-flight .v24-touch-power input{top:51px;width:112px;left:-28px}
+  body.v24-touch-flight .v24-touch-actions{bottom:max(8px,env(safe-area-inset-bottom));gap:3px}
+  body.v24-touch-flight .v24-touch-btn{min-width:42px;height:36px;padding:0 5px;font-size:7.5px}
+}
+@media(max-width:700px) and (orientation:landscape){
+  #root:not(.flight-wide){grid-template-columns:min(250px,40vw) 1fr;grid-template-rows:36px minmax(0,1fr) 18px}
+  #root:not(.flight-wide) #hdr{grid-column:1/-1;grid-row:1}#root:not(.flight-wide) #sb{grid-column:1;grid-row:2;border-top:0;border-right:1px solid var(--bd2)}
+  #root:not(.flight-wide) #mw{grid-column:2;grid-row:2}#root:not(.flight-wide) #ft{grid-column:1/-1;grid-row:3}
+  body.v24-touch-flight #v23-mfd-row{top:4%;height:28%}
+}
+@media(max-width:700px) and (orientation:portrait){
+  body.v24-touch-flight #v23-mfd-row{top:4%;height:24%;grid-template-columns:1fr 1.18fr}
+  body.v24-touch-flight #v23-mfd-row>.v23-mfd:last-child{display:none}
+  body.v24-touch-flight .v24-rotate-hint{display:flex;inset:auto auto 23% 50%;transform:translateX(-50%);width:max-content;max-width:82vw;padding:7px 11px;border-radius:20px;background:rgba(3,20,29,.78);font-size:9px;line-height:1.3;pointer-events:none}
+  body.v24-touch-flight .v24-rotate-hint span{display:inline;font-size:14px;margin-right:5px}
+}
 </style>
 </head>
 <body>
@@ -1884,7 +1939,13 @@ function readACParams(){
   applyFlightFeel(false);
 }
 
-const V24_TOUCH_CAPABLE=()=>matchMedia('(pointer:coarse)').matches||navigator.maxTouchPoints>0||innerWidth<=1024;
+const V24_TOUCH_CAPABLE=()=>matchMedia('(pointer:coarse)').matches||navigator.maxTouchPoints>0||innerWidth<=1199;
+function updateV24DeviceLayout(){
+  const w=innerWidth,device=w<=700?'phone':w<=1199?'tablet':'desktop';
+  document.body.dataset.device=device;
+  document.body.classList.toggle('v24-phone',device==='phone');document.body.classList.toggle('v24-tablet',device==='tablet');document.body.classList.toggle('v24-desktop',device==='desktop');
+  setTimeout(()=>{map?.resize();V24_GPS_MAP?.resize();},80);
+}
 function setV24TouchFlight(on){
   const enabled=on&&V24_TOUCH_CAPABLE();document.body.classList.toggle('v24-touch-flight',enabled);document.getElementById('v24-touch-ui')?.classList.toggle('on',enabled);
   if(enabled){const s=document.getElementById('v24-touch-collective');if(s){s.value=CTRL.collective;document.getElementById('v24-touch-power-value').value=Math.round(CTRL.collective*100)+'%';}}
@@ -1901,6 +1962,9 @@ function initV24TouchControls(){
   addEventListener('resize',()=>{setV24TouchFlight(flyOn);setTimeout(()=>{map?.resize();V24_GPS_MAP?.resize();},120);},{passive:true});
 }
 initV24TouchControls();
+updateV24DeviceLayout();
+addEventListener('orientationchange',updateV24DeviceLayout,{passive:true});
+window.visualViewport?.addEventListener('resize',updateV24DeviceLayout,{passive:true});
 
 /* ═══════════════════════════════════════════════════════
    COCKPIT FLIGHT MODE
@@ -3115,17 +3179,20 @@ function corridorFeatureCollection(){
 }
 function ensureTrainingCorridorLayers(){
   if(!map||!map.isStyleLoaded())return;
+  ['training-corridor-fill','training-corridor-edge','training-corridor-center'].forEach(id=>{try{if(map.getLayer(id))map.removeLayer(id);}catch(e){}});
   if(!map.getSource('training-corridor'))map.addSource('training-corridor',{type:'geojson',data:corridorFeatureCollection()});
-  if(!map.getLayer('training-corridor-fill'))map.addLayer({id:'training-corridor-fill',type:'fill',source:'training-corridor',filter:['==',['get','kind'],'corridor'],paint:{'fill-color':'#35c9ef','fill-opacity':.035}});
-  if(!map.getLayer('training-corridor-edge'))map.addLayer({id:'training-corridor-edge',type:'line',source:'training-corridor',filter:['==',['get','kind'],'corridor'],paint:{'line-color':'#66dcf6','line-width':1,'line-opacity':.18}});
-  if(!map.getLayer('training-corridor-center'))map.addLayer({id:'training-corridor-center',type:'line',source:'training-corridor',filter:['==',['get','kind'],'centerline'],paint:{'line-color':'#ffffff','line-width':1,'line-opacity':.16,'line-dasharray':[2,2]}});
 }
 function removeTrainingCorridor3D(){
   try{if(map?.getLayer('training-corridor-air'))map.removeLayer('training-corridor-air');}catch(e){}
 }
+function corridorTerrainMSL(lat,lng){
+  const direct=terrainElevAt(lat,lng);if(Number.isFinite(direct))return direct;
+  const base=TRAINING_CORRIDOR.base,baseElev=base?terrainElevAt(base.lat,base.lng):null;
+  if(Number.isFinite(baseElev))return baseElev;
+  const olsElev=olsList[0]?.p?.elev;return Number.isFinite(olsElev)?olsElev:0;
+}
 function corridorAltMSL(p){
-  const gnd=terrainElevAt(p[1],p[0]);
-  return (Number.isFinite(gnd)?gnd:0)+(Number.isFinite(p[2])?p[2]:80);
+  return corridorTerrainMSL(p[1],p[0])+(Number.isFinite(p[2])?p[2]:80);
 }
 function renderTrainingCorridor3D(){
   removeTrainingCorridor3D();
@@ -3137,20 +3204,30 @@ function renderTrainingCorridor3D(){
     onAdd(m,gl){
       this._map=m;this._cam=new THREE.Camera();this._scn=new THREE.Scene();
       const mc=(lng,lat,alt)=>{const q=ll2mc(lat,lng,alt);return new THREE.Vector3(q.x,q.y,q.z);};
-      const verts=[],idx=[],leftRail=[],rightRail=[],centerRail=[];
+      const verts=[],idx=[],leftRail=[],rightRail=[],topLeftRail=[],topRightRail=[],centerRail=[],cross=[];
+      const corridorHalfHeight=clamp(gateRadius*.72,20,30);
       route.forEach((p,i)=>{
         const prev=route[Math.max(0,i-1)],next=route[Math.min(route.length-1,i+1)];
-        const heading=brg(prev[1],prev[0],next[1],next[0]),alt=corridorAltMSL(p);
+        const heading=brg(prev[1],prev[0],next[1],next[0]);
         const lp=dest(p[1],p[0],(heading+270)%360,widthM/2),rp=dest(p[1],p[0],(heading+90)%360,widthM/2);
-        const l=mc(lp.lng,lp.lat,alt),r=mc(rp.lng,rp.lat,alt),c=mc(p[0],p[1],alt);
-        leftRail.push(l);rightRail.push(r);centerRail.push(c);verts.push(l.x,l.y,l.z,r.x,r.y,r.z);
-        if(i<route.length-1){const b=i*2;idx.push(b,b+1,b+3,b,b+3,b+2);}
+        const ground=Math.max(corridorTerrainMSL(p[1],p[0]),corridorTerrainMSL(lp.lat,lp.lng),corridorTerrainMSL(rp.lat,rp.lng));
+        const centerAlt=ground+(Number.isFinite(p[2])?p[2]:80),halfH=Math.min(corridorHalfHeight,Math.max(12,(p[2]||80)-12));
+        const lf=mc(lp.lng,lp.lat,centerAlt-halfH),rf=mc(rp.lng,rp.lat,centerAlt-halfH),lt=mc(lp.lng,lp.lat,centerAlt+halfH),rt=mc(rp.lng,rp.lat,centerAlt+halfH),c=mc(p[0],p[1],centerAlt);
+        cross.push({lf,rf,lt,rt});leftRail.push(mc(lp.lng,lp.lat,centerAlt));rightRail.push(mc(rp.lng,rp.lat,centerAlt));topLeftRail.push(lt);topRightRail.push(rt);centerRail.push(c);
+        for(const v of[lf,rf,lt,rt])verts.push(v.x,v.y,v.z);
+        if(i<route.length-1){
+          const b=i*4,n=b+4;
+          idx.push(b,b+1,n+1,b,n+1,n);             // floor
+          idx.push(b+2,n+3,b+3,b+2,n+2,n+3);     // ceiling
+          idx.push(b,n,n+2,b,n+2,b+2);           // left translucent wall
+          idx.push(b+1,b+3,n+3,b+1,n+3,n+1);     // right translucent wall
+        }
       });
       const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(verts,3));geo.setIndex(idx);
-      const mat=new THREE.MeshBasicMaterial({color:0x28c9ee,transparent:true,opacity:.18,side:THREE.DoubleSide,depthWrite:false,depthTest:false});
+      const mat=new THREE.MeshBasicMaterial({color:0x25c7ec,transparent:true,opacity:.14,side:THREE.DoubleSide,depthWrite:false,depthTest:false});
       const ribbon=new THREE.Mesh(geo,mat);ribbon.renderOrder=1100;this._scn.add(ribbon);
       const addRail=(pts,color,opacity)=>{const g=new THREE.BufferGeometry().setFromPoints(pts),lm=new THREE.LineBasicMaterial({color,transparent:true,opacity,depthWrite:false,depthTest:false});const line=new THREE.Line(g,lm);line.renderOrder=1101;this._scn.add(line);};
-      addRail(leftRail,0x63e7ff,.9);addRail(rightRail,0x63e7ff,.9);addRail(centerRail,0xffffff,.92);
+      addRail(leftRail,0x63e7ff,.85);addRail(rightRail,0x63e7ff,.85);addRail(topLeftRail,0xa5f3ff,.7);addRail(topRightRail,0xa5f3ff,.7);addRail(centerRail,0xffffff,.92);
       for(let i=1;i<route.length;i++){
         const p=route[i],prev=route[i-1],next=route[Math.min(route.length-1,i+1)];
         const heading=brg(prev[1],prev[0],next[1],next[0]),baseAlt=corridorAltMSL(p),segments=64,thick=2.6;
@@ -3177,6 +3254,8 @@ function setTrainingCorridor(coords,widthM,seed=TRAINING_CORRIDOR.seed||0,base=T
   ensureTrainingCorridorLayers();
   map?.getSource('training-corridor')?.setData(corridorFeatureCollection());
   renderTrainingCorridor3D();
+  const expectedSeed=seed;
+  map?.once?.('idle',()=>{if(TRAINING_CORRIDOR.coords.length>1&&TRAINING_CORRIDOR.seed===expectedSeed)renderTrainingCorridor3D();});
   updateV24GPS(true);
 }
 function clearTrainingCorridor(){
