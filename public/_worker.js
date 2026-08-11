@@ -22,8 +22,25 @@ function securityHeaders(extra = {}) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (url.pathname === '/api/service-config') {
+      return new Response(JSON.stringify({
+        paidAccessEnabled: env.PAID_ACCESS_ENABLED === 'true',
+        paidPriceYen: 100,
+        paidMinutes: 10,
+        freePlan: 'bring-your-own-mapbox-token',
+      }), { status: 200, headers: securityHeaders() });
+    }
     if (url.pathname !== '/api/mapbox-token') {
       return env.ASSETS.fetch(request);
+    }
+
+    // Developer-funded Mapbox access stays closed until payment verification
+    // is implemented. Free users provide their own public token in-browser.
+    if (env.PAID_ACCESS_ENABLED !== 'true') {
+      return new Response(JSON.stringify({ error: 'Paid access is not enabled' }), {
+        status: 402,
+        headers: securityHeaders(),
+      });
     }
 
     if (request.method !== 'GET') {
