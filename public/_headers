@@ -4,5 +4,4 @@
   Permissions-Policy: camera=(), microphone=(), geolocation=()
   X-Frame-Options: SAMEORIGIN
   Cross-Origin-Opener-Policy: same-origin-allow-popups
-  Cache-Control: public, max-age=300, must-revalidate
-
+  Cache-Control: public, max-age=0, must-revalidate
