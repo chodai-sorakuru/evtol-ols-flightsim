@@ -330,7 +330,7 @@ canvas.dial{border-radius:50%;border:1.5px solid rgba(24,192,232,.2);box-shadow:
 .flight-gate-marker.next{border-color:#ffd84a;box-shadow:0 0 8px #ffd84a,0 0 22px rgba(255,216,74,.85),inset 0 0 10px rgba(255,216,74,.5);animation:gatePulse 1.25s ease-in-out infinite}
 .flight-gate-marker.visited{border-color:#54e69c;opacity:.38;box-shadow:0 0 8px rgba(84,230,156,.55)}
 .flight-gate-marker .gate-alt{position:absolute;top:58px;left:50%;transform:translateX(-50%);white-space:nowrap;padding:2px 5px;border-radius:4px;background:rgba(2,12,20,.82);color:#aeefff;font-size:8px}
-@keyframes gatePulse{50%{transform:scale(1.10);filter:brightness(1.25)}}
+@keyframes gatePulse{50%{filter:brightness(1.35)}}
 .srow{display:flex;justify-content:space-between;align-items:center;
   font-family:var(--mono);font-size:10px;color:var(--tx2);
   border-bottom:1px solid var(--bd);padding:5px 0;gap:12px}
@@ -486,7 +486,7 @@ canvas.dial{border-radius:50%;border:1.5px solid rgba(24,192,232,.2);box-shadow:
     <option value="heli">🚁 ヘリ風</option>
     <option value="trainer">🧑‍🏫 教材アシスト</option>
   </select>
-  <button class="hb" onclick="setupTrainingScenario()" title="約5分のランダムなリングコースを自動作成">🎯 5分ランダムコース</button>
+  <button class="hb" onclick="setupTrainingScenario()" title="同じ場所・設定では同じ形になる約5分の空中コースを作成">🎯 固定5分コース</button>
   <div class="hd"></div>
   <select class="msel" id="mstyle" onchange="changeStyle()">
     <option value="standard">🏙 Standard 3D</option>
@@ -674,7 +674,7 @@ canvas.dial{border-radius:50%;border:1.5px solid rgba(24,192,232,.2);box-shadow:
           <select id="warn-sens"><option value="easy" selected>やさしい</option><option value="normal">標準</option><option value="strict">厳しめ</option></select>
         </div>
       </div>
-      <button class="btn pr full" onclick="setupTrainingScenario()">🎯 約5分のランダムリングコースを作成</button>
+      <button class="btn pr full" onclick="setupTrainingScenario()">🎯 約5分の固定空中コースを作成</button>
       <div class="hn" style="margin-top:4px">目的は操縦技能評価ではなく、FATO、進入面、転移面、周辺空間の位置関係をゲーム感覚で体験することです。</div>
     </div>
   </div>
@@ -1229,6 +1229,7 @@ function onLoad(){
   }
 
   ensureTrainingCorridorLayers();
+  renderTrainingCorridor3D();
 
   applyEnvironment(currentEnv);
   olsList.forEach(o=>renderOLS3D(o));
@@ -1841,7 +1842,9 @@ function addVP(lat,lng,options={}){
   const targetAlt=Number.isFinite(options.targetAlt)?options.targetAlt:null;
   el.className='flight-gate-marker';
   el.innerHTML=`<span>${n}</span>${targetAlt!==null?`<span class="gate-alt">${Math.round(targetAlt)}m</span>`:''}`;
-  const mkr=new mapboxgl.Marker({element:el}).setLngLat([lng,lat]).addTo(map);
+  const mkr=new mapboxgl.Marker({element:el,pitchAlignment:'viewport',rotationAlignment:'viewport',occludedOpacity:.18}).setLngLat([lng,lat]);
+  if(targetAlt!==null&&typeof mkr.setAltitude==='function')mkr.setAltitude(targetAlt);
+  mkr.addTo(map);
   vpList.push({id,lat,lng,label,mkr,el,visited:false,targetAlt,courseGate:!!options.courseGate});updateVPList();
   log(`${label} 設置 (${lat.toFixed(4)},${lng.toFixed(4)})`,'ok');
 }
@@ -3090,7 +3093,7 @@ function updateTrainingHUD(){
     else if(H.alt>altMax)showInstructor('ゲート高度より高めです。↓でパワーを抜き、前方を見ながら降下してください。',2200,'warn');
   }
 }
-let TRAINING_CORRIDOR={coords:[],polygon:[],widthM:180};
+let TRAINING_CORRIDOR={coords:[],polygon:[],widthM:180,seed:0,base:null};
 function buildCorridorPolygon(coords,widthM){
   if(coords.length<2)return [];
   const left=[],right=[],half=widthM/2;
@@ -3107,23 +3110,87 @@ function buildCorridorPolygon(coords,widthM){
 function corridorFeatureCollection(){
   const features=[];
   if(TRAINING_CORRIDOR.polygon.length)features.push({type:'Feature',properties:{kind:'corridor'},geometry:{type:'Polygon',coordinates:TRAINING_CORRIDOR.polygon}});
-  if(TRAINING_CORRIDOR.coords.length>1)features.push({type:'Feature',properties:{kind:'centerline'},geometry:{type:'LineString',coordinates:TRAINING_CORRIDOR.coords}});
+  if(TRAINING_CORRIDOR.coords.length>1)features.push({type:'Feature',properties:{kind:'centerline'},geometry:{type:'LineString',coordinates:TRAINING_CORRIDOR.coords.map(p=>p.slice(0,2))}});
   return {type:'FeatureCollection',features};
 }
 function ensureTrainingCorridorLayers(){
   if(!map||!map.isStyleLoaded())return;
   if(!map.getSource('training-corridor'))map.addSource('training-corridor',{type:'geojson',data:corridorFeatureCollection()});
-  if(!map.getLayer('training-corridor-fill'))map.addLayer({id:'training-corridor-fill',type:'fill',source:'training-corridor',filter:['==',['get','kind'],'corridor'],paint:{'fill-color':'#35c9ef','fill-opacity':.18}});
-  if(!map.getLayer('training-corridor-edge'))map.addLayer({id:'training-corridor-edge',type:'line',source:'training-corridor',filter:['==',['get','kind'],'corridor'],paint:{'line-color':'#66dcf6','line-width':2,'line-opacity':.8}});
-  if(!map.getLayer('training-corridor-center'))map.addLayer({id:'training-corridor-center',type:'line',source:'training-corridor',filter:['==',['get','kind'],'centerline'],paint:{'line-color':'#ffffff','line-width':2,'line-opacity':.9,'line-dasharray':[2,2]}});
+  if(!map.getLayer('training-corridor-fill'))map.addLayer({id:'training-corridor-fill',type:'fill',source:'training-corridor',filter:['==',['get','kind'],'corridor'],paint:{'fill-color':'#35c9ef','fill-opacity':.035}});
+  if(!map.getLayer('training-corridor-edge'))map.addLayer({id:'training-corridor-edge',type:'line',source:'training-corridor',filter:['==',['get','kind'],'corridor'],paint:{'line-color':'#66dcf6','line-width':1,'line-opacity':.18}});
+  if(!map.getLayer('training-corridor-center'))map.addLayer({id:'training-corridor-center',type:'line',source:'training-corridor',filter:['==',['get','kind'],'centerline'],paint:{'line-color':'#ffffff','line-width':1,'line-opacity':.16,'line-dasharray':[2,2]}});
 }
-function setTrainingCorridor(coords,widthM){
-  TRAINING_CORRIDOR={coords:coords.slice(),widthM,polygon:buildCorridorPolygon(coords,widthM)};
+function removeTrainingCorridor3D(){
+  try{if(map?.getLayer('training-corridor-air'))map.removeLayer('training-corridor-air');}catch(e){}
+}
+function corridorAltMSL(p){
+  const gnd=terrainElevAt(p[1],p[0]);
+  return (Number.isFinite(gnd)?gnd:0)+(Number.isFinite(p[2])?p[2]:80);
+}
+function renderTrainingCorridor3D(){
+  removeTrainingCorridor3D();
+  if(!map||!map.isStyleLoaded()||TRAINING_CORRIDOR.coords.length<2)return;
+  const route=TRAINING_CORRIDOR.coords.map(p=>[p[0],p[1],Number.isFinite(p[2])?p[2]:80]);
+  const widthM=TRAINING_CORRIDOR.widthM;
+  const gateRadius=clamp(+(document.getElementById('gate-radius')?.value||85)*.42,24,42);
+  const layer={id:'training-corridor-air',type:'custom',renderingMode:'3d',
+    onAdd(m,gl){
+      this._map=m;this._cam=new THREE.Camera();this._scn=new THREE.Scene();
+      const mc=(lng,lat,alt)=>{const q=ll2mc(lat,lng,alt);return new THREE.Vector3(q.x,q.y,q.z);};
+      const verts=[],idx=[],leftRail=[],rightRail=[],centerRail=[];
+      route.forEach((p,i)=>{
+        const prev=route[Math.max(0,i-1)],next=route[Math.min(route.length-1,i+1)];
+        const heading=brg(prev[1],prev[0],next[1],next[0]),alt=corridorAltMSL(p);
+        const lp=dest(p[1],p[0],(heading+270)%360,widthM/2),rp=dest(p[1],p[0],(heading+90)%360,widthM/2);
+        const l=mc(lp.lng,lp.lat,alt),r=mc(rp.lng,rp.lat,alt),c=mc(p[0],p[1],alt);
+        leftRail.push(l);rightRail.push(r);centerRail.push(c);verts.push(l.x,l.y,l.z,r.x,r.y,r.z);
+        if(i<route.length-1){const b=i*2;idx.push(b,b+1,b+3,b,b+3,b+2);}
+      });
+      const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(verts,3));geo.setIndex(idx);
+      const mat=new THREE.MeshBasicMaterial({color:0x28c9ee,transparent:true,opacity:.18,side:THREE.DoubleSide,depthWrite:false,depthTest:false});
+      const ribbon=new THREE.Mesh(geo,mat);ribbon.renderOrder=1100;this._scn.add(ribbon);
+      const addRail=(pts,color,opacity)=>{const g=new THREE.BufferGeometry().setFromPoints(pts),lm=new THREE.LineBasicMaterial({color,transparent:true,opacity,depthWrite:false,depthTest:false});const line=new THREE.Line(g,lm);line.renderOrder=1101;this._scn.add(line);};
+      addRail(leftRail,0x63e7ff,.9);addRail(rightRail,0x63e7ff,.9);addRail(centerRail,0xffffff,.92);
+      for(let i=1;i<route.length;i++){
+        const p=route[i],prev=route[i-1],next=route[Math.min(route.length-1,i+1)];
+        const heading=brg(prev[1],prev[0],next[1],next[0]),baseAlt=corridorAltMSL(p),segments=64,thick=2.6;
+        const gv=[],gi=[];
+        for(let s=0;s<segments;s++){
+          const a0=s/segments*Math.PI*2,a1=(s+1)/segments*Math.PI*2;
+          for(const a of[a0,a1])for(const rr of[gateRadius-thick,gateRadius+thick]){
+            const lateral=Math.cos(a)*rr,b=(heading+(lateral<0?270:90))%360,q=dest(p[1],p[0],b,Math.abs(lateral)),v=mc(q.lng,q.lat,baseAlt+Math.sin(a)*rr);gv.push(v.x,v.y,v.z);
+          }
+          const b=s*4;gi.push(b,b+1,b+3,b,b+3,b+2);
+        }
+        const gg=new THREE.BufferGeometry();gg.setAttribute('position',new THREE.Float32BufferAttribute(gv,3));gg.setIndex(gi);
+        const gm=new THREE.MeshBasicMaterial({color:i===1?0xffda55:0x45e8ff,transparent:true,opacity:.9,side:THREE.DoubleSide,depthWrite:false,depthTest:false});
+        const ring=new THREE.Mesh(gg,gm);ring.renderOrder=1102;this._scn.add(ring);
+      }
+      this._ren=new THREE.WebGLRenderer({canvas:m.getCanvas(),context:gl,antialias:true});this._ren.autoClear=false;
+    },
+    render(gl,mtx){this._cam.projectionMatrix=new THREE.Matrix4().fromArray(mtx);this._ren.resetState();this._ren.render(this._scn,this._cam);}
+  };
+  map.addLayer(layer);
+}
+function setTrainingCorridor(coords,widthM,seed=TRAINING_CORRIDOR.seed||0,base=TRAINING_CORRIDOR.base){
+  TRAINING_CORRIDOR={coords:coords.map(p=>p.slice()),widthM,seed,base:base?{lat:base.lat,lng:base.lng}:null,polygon:buildCorridorPolygon(coords,widthM)};
   ensureTrainingCorridorLayers();
   map?.getSource('training-corridor')?.setData(corridorFeatureCollection());
+  renderTrainingCorridor3D();
   updateV24GPS(true);
 }
-function clearTrainingCorridor(){setTrainingCorridor([],TRAINING_CORRIDOR.widthM||180);}
+function clearTrainingCorridor(){
+  const widthM=TRAINING_CORRIDOR.widthM||180;
+  TRAINING_CORRIDOR={coords:[],polygon:[],widthM,seed:0,base:null};
+  ensureTrainingCorridorLayers();map?.getSource('training-corridor')?.setData(corridorFeatureCollection());removeTrainingCorridor3D();updateV24GPS(true);
+}
+
+function fixedCourseRandom(seed){
+  let a=seed>>>0;return()=>{a=(a+0x6D2B79F5)>>>0;let t=a;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return((t^(t>>>14))>>>0)/4294967296;};
+}
+function fixedCourseSeed(base,totalGates,corridorWidth){
+  return (Math.imul(Math.round((base.lat+90)*10000),73856093)^Math.imul(Math.round((base.lng+180)*10000),19349663)^Math.imul(totalGates,83492791)^Math.round(corridorWidth))>>>0;
+}
 
 function setupTrainingScenario(){
   if(!map){alert('先にMapboxトークンを入力して地図を起動してください');return;}
@@ -3131,32 +3198,34 @@ function setupTrainingScenario(){
   // Existing objects are cleared before creating a fresh five-minute course.
   olsList.slice().forEach(o=>removeOLS(o.id));
   vpList.forEach(v=>v.mkr.remove());vpList=[];updateVPList();
-  const c=map.getCenter();
+  const c=TRAINING_CORRIDOR.base||map.getCenter();
   const base={lat:c.lat,lng:c.lng};
   // One OLS at the start and an irregular loop of ring gates. At 70-85 km/h,
   // the 5-7 km route plus takeoff/landing and turns takes about five minutes.
   addOLS(base.lat,base.lng);
+  setStartPoint(base.lat,base.lng);
   const totalGates=clamp(Math.round(+(document.getElementById('course-gates')?.value||9)),6,12);
   const gateCount=totalGates-1;
   const corridorWidth=clamp(+(document.getElementById('corridor-width')?.value||180),80,500);
-  const rotation=Math.random()*360;
-  const direction=Math.random()<.5?-1:1;
+  const courseSeed=fixedCourseSeed(base,totalGates,corridorWidth),rnd=fixedCourseRandom(courseSeed);
+  const rotation=rnd()*360;
+  const direction=rnd()<.5?-1:1;
   const gates=[];
   for(let i=0;i<gateCount;i++){
-    const angle=rotation+direction*(i*360/gateCount+(Math.random()-.5)*16);
-    const radius=760+Math.random()*360;
+    const angle=rotation+direction*(i*360/gateCount+(rnd()-.5)*16);
+    const radius=760+rnd()*360;
     const p=dest(base.lat,base.lng,(angle+360)%360,radius);
     const wave=Math.sin(i/gateCount*Math.PI*2+rotation*Math.PI/180);
-    gates.push({...p,targetAlt:Math.round(95+wave*30+Math.random()*24)});
+    gates.push({...p,targetAlt:Math.round(95+wave*30+rnd()*24)});
   }
   gates.forEach(p=>addVP(p.lat,p.lng,{targetAlt:p.targetAlt,courseGate:true}));
   const finish=dest(base.lat,base.lng,(rotation-direction*18+360)%360,230);
   addVP(finish.lat,finish.lng,{targetAlt:55,courseGate:true});
-  setTrainingCorridor([[base.lng,base.lat],...gates.map(p=>[p.lng,p.lat]),[finish.lng,finish.lat]],corridorWidth);
+  setTrainingCorridor([[base.lng,base.lat,45],...gates.map(p=>[p.lng,p.lat,p.targetAlt]),[finish.lng,finish.lat,55]],corridorWidth,courseSeed,base);
   const routeLength=gates.reduce((sum,p,i)=>{const prev=i?gates[i-1]:base;return sum+hav(prev.lat,prev.lng,p.lat,p.lng);},0)+hav(gates.at(-1).lat,gates.at(-1).lng,finish.lat,finish.lng);
   updateGamePanel();
   showInstructor(`約5分のランダムコースを作成しました。${vpList.length}個のリングを順番に通過してください。`,5200,'info');
-  log(`5分ランダムコース: コリドー幅${corridorWidth}m / リング×${vpList.length} / 約${(routeLength/1000).toFixed(1)}km`,'ok');
+  log(`5分固定コース: 空中コリドー幅${corridorWidth}m / リング×${vpList.length} / 約${(routeLength/1000).toFixed(1)}km / seed ${courseSeed}`,'ok');
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -3262,6 +3331,7 @@ function resetAll(){
   if(flyOn)toggleFly();
   olsList.slice().forEach(o=>removeOLS(o.id));
   vpList.forEach(v=>v.mkr.remove());vpList=[];updateVPList();
+  if(START.marker)START.marker.remove();START.lat=null;START.lng=null;START.marker=null;
   clearTrainingCorridor();
   score=0;missionsCompleted=0;olsViolCount=0;msaViolCount=0;flightSec=0;
   bldHitCount=0;terHitCount=0;_prevBldHit=false;
