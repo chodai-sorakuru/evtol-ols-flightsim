@@ -325,6 +325,12 @@ canvas.dial{border-radius:50%;border:1.5px solid rgba(24,192,232,.2);box-shadow:
   width:92px;height:92px;border-radius:50%;border:3px solid;
   font-size:48px;font-weight:700;font-family:var(--mono);margin:6px auto 14px;
 }
+.flight-gate-marker{position:relative;width:54px;height:54px;border:5px solid #45e8ff;border-radius:50%;box-sizing:border-box;background:rgba(5,20,30,.08);box-shadow:0 0 7px #45e8ff,0 0 18px rgba(69,232,255,.75),inset 0 0 10px rgba(69,232,255,.45);color:#fff;font:700 11px/1 var(--mono);display:flex;align-items:center;justify-content:center;transform:translateZ(0)}
+.flight-gate-marker::before{content:"";position:absolute;inset:5px;border:1px solid rgba(255,255,255,.6);border-radius:50%}
+.flight-gate-marker.next{border-color:#ffd84a;box-shadow:0 0 8px #ffd84a,0 0 22px rgba(255,216,74,.85),inset 0 0 10px rgba(255,216,74,.5);animation:gatePulse 1.25s ease-in-out infinite}
+.flight-gate-marker.visited{border-color:#54e69c;opacity:.38;box-shadow:0 0 8px rgba(84,230,156,.55)}
+.flight-gate-marker .gate-alt{position:absolute;top:58px;left:50%;transform:translateX(-50%);white-space:nowrap;padding:2px 5px;border-radius:4px;background:rgba(2,12,20,.82);color:#aeefff;font-size:8px}
+@keyframes gatePulse{50%{transform:scale(1.10);filter:brightness(1.25)}}
 .srow{display:flex;justify-content:space-between;align-items:center;
   font-family:var(--mono);font-size:10px;color:var(--tx2);
   border-bottom:1px solid var(--bd);padding:5px 0;gap:12px}
@@ -433,7 +439,7 @@ canvas.dial{border-radius:50%;border:1.5px solid rgba(24,192,232,.2);box-shadow:
     <option value="heli">🚁 ヘリ風</option>
     <option value="trainer">🧑‍🏫 教材アシスト</option>
   </select>
-  <button class="hb" onclick="setupTrainingScenario()" title="現在地周辺にOLSとVPを自動配置">🎯 練習コース</button>
+  <button class="hb" onclick="setupTrainingScenario()" title="約5分のランダムなリングコースを自動作成">🎯 5分ランダムコース</button>
   <div class="hd"></div>
   <select class="msel" id="mstyle" onchange="changeStyle()">
     <option value="standard">🏙 Standard 3D</option>
@@ -617,7 +623,7 @@ canvas.dial{border-radius:50%;border:1.5px solid rgba(24,192,232,.2);box-shadow:
           <select id="warn-sens"><option value="easy" selected>やさしい</option><option value="normal">標準</option><option value="strict">厳しめ</option></select>
         </div>
       </div>
-      <button class="btn pr full" onclick="setupTrainingScenario()">🎯 練習コースを自動作成</button>
+      <button class="btn pr full" onclick="setupTrainingScenario()">🎯 約5分のランダムリングコースを作成</button>
       <div class="hn" style="margin-top:4px">目的は操縦技能評価ではなく、FATO、進入面、転移面、周辺空間の位置関係をゲーム感覚で体験することです。</div>
     </div>
   </div>
@@ -1752,23 +1758,26 @@ function olsHAt(distM,p){
 /* ═══════════════════════════════════════════════════════
    VERTIPORT
    ═══════════════════════════════════════════════════════ */
-function addVP(lat,lng){
+function addVP(lat,lng,options={}){
   const id=uid(),n=vpList.length+1,label=`VP-${n}`;
   const el=document.createElement('div');
-  el.style.cssText=`width:18px;height:18px;border-radius:3px;background:#9070e0;border:2px solid #c0a8ff;display:flex;align-items:center;justify-content:center;font-size:8px;color:#fff;font-weight:700`;
-  el.textContent=n;
+  const targetAlt=Number.isFinite(options.targetAlt)?options.targetAlt:null;
+  el.className='flight-gate-marker';
+  el.innerHTML=`<span>${n}</span>${targetAlt!==null?`<span class="gate-alt">${Math.round(targetAlt)}m</span>`:''}`;
   const mkr=new mapboxgl.Marker({element:el}).setLngLat([lng,lat]).addTo(map);
-  vpList.push({id,lat,lng,label,mkr,visited:false});updateVPList();
+  vpList.push({id,lat,lng,label,mkr,el,visited:false,targetAlt,courseGate:!!options.courseGate});updateVPList();
   log(`${label} 設置 (${lat.toFixed(4)},${lng.toFixed(4)})`,'ok');
 }
 function updateVPList(){
   const b=document.getElementById('vp-list');
   document.getElementById('vpN').textContent=vpList.length;
   if(!vpList.length){b.innerHTML='<div class="hn">未設置</div>';return;}
+  const next=vpList.find(v=>!v.visited);
+  vpList.forEach(v=>{if(v.el){v.el.classList.toggle('visited',v.visited);v.el.classList.toggle('next',v===next);}});
   b.innerHTML=vpList.map(v=>`
     <div style="display:flex;align-items:center;gap:4px;font-size:9px;padding:2px 0;border-bottom:1px solid var(--bd)">
       <span style="width:8px;height:8px;border-radius:2px;background:${v.visited?'#10b060':'#9070e0'};flex-shrink:0"></span>
-      ${v.label} ${v.visited?'✓':''}
+      ${v.label}${v.targetAlt!==null?` ${Math.round(v.targetAlt)}m`:''} ${v.visited?'✓':''}
       <span style="font-size:8px;color:var(--tx3);font-family:var(--mono);margin-left:auto">(${v.lat.toFixed(4)},${v.lng.toFixed(4)})</span>
     </div>`).join('');
 }
@@ -2959,14 +2968,17 @@ function computeProximity(){
 function nextTarget(){
   return vpList.find(v=>!v.visited)||null;
 }
+function courseGateScore(){return vpList.length?Math.round(40*Math.min(vpList.length,missionsCompleted)/vpList.length):0;}
 function checkVPProximity(){
   const tgt=nextTarget();
   if(!tgt)return;
   const r=+(document.getElementById('gate-radius')?.value||85);
   const altMax=+(document.getElementById('gate-alt')?.value||120);
+  const altLow=tgt.targetAlt===null?0:Math.max(0,tgt.targetAlt-45);
+  const altHigh=tgt.targetAlt===null?altMax:tgt.targetAlt+45;
   const d=hav(H.lat,H.lng,tgt.lat,tgt.lng);
-  if(d<r && H.alt<=altMax){
-    tgt.visited=true;missionsCompleted++;gateScore=Math.min(40,missionsCompleted*10);
+  if(d<r && H.alt>=altLow && H.alt<=altHigh){
+    tgt.visited=true;missionsCompleted++;gateScore=courseGateScore();
     updateVPList();updateGamePanel();
     showInstructor(`${tgt.label} 通過。次のゲートへ。制限表面と進入方向の見え方を確認してください。`,3600,'info');
     log(`${tgt.label} 通過: d=${Math.round(d)}m alt=${Math.round(H.alt)}m`,'ok');
@@ -2987,10 +2999,12 @@ function updateTrainingHUD(){
   arrow.textContent=arrowChar;
   const r=+(document.getElementById('gate-radius')?.value||85);
   const altMax=+(document.getElementById('gate-alt')?.value||120);
-  cue.className='on '+(H.alt>altMax?'warn':d<r?'':'');
-  txt.textContent=`${tgt.label} ${Math.round(d)}m / 方位差 ${Math.round(rel)}° / ゲート高度≤${altMax}m`;
+  const targetAlt=tgt.targetAlt===null?altMax*.55:tgt.targetAlt;
+  const altWarn=tgt.targetAlt===null?H.alt>altMax:Math.abs(H.alt-targetAlt)>45;
+  cue.className='on '+(altWarn?'warn':d<r?'':'');
+  txt.textContent=`${tgt.label} ${Math.round(d)}m / 方位差 ${Math.round(rel)}° / 目標高度 ${Math.round(targetAlt)}m`;
   cue.style.left=(50+clamp(rel/3,-22,22))+'%';
-  if(fd){fd.classList.add('on');fd.style.transform=`translate(-50%,-50%) translateX(${clamp(rel*1.2,-120,120)}px) translateY(${clamp((H.alt-altMax*.55)*.35,-65,65)}px)`;}
+  if(fd){fd.classList.add('on');fd.style.transform=`translate(-50%,-50%) translateX(${clamp(rel*1.2,-120,120)}px) translateY(${clamp((H.alt-targetAlt)*.35,-65,65)}px)`;}
   const now=performance.now();
   if(now>_msgUntil){
     const m=document.getElementById('game-mode')?.value||'gate';
@@ -3002,23 +3016,32 @@ function updateTrainingHUD(){
 function setupTrainingScenario(){
   if(!map){alert('先にMapboxトークンを入力して地図を起動してください');return;}
   if(flyOn)toggleFly();
-  // Existing objects are cleared to make a simple repeatable course.
+  // Existing objects are cleared before creating a fresh five-minute course.
   olsList.slice().forEach(o=>removeOLS(o.id));
   vpList.forEach(v=>v.mkr.remove());vpList=[];updateVPList();
   const c=map.getCenter();
   const base={lat:c.lat,lng:c.lng};
-  // Place one central OLS and three training gates along/around the approach path.
+  // One OLS at the start and an irregular loop of ring gates. At 70-85 km/h,
+  // the 5-7 km route plus takeoff/landing and turns takes about five minutes.
   addOLS(base.lat,base.lng);
-  const p1=dest(base.lat,base.lng,0,260);
-  const p2=dest(base.lat,base.lng,28,620);
-  const p3=dest(base.lat,base.lng,72,980);
-  addVP(base.lat,base.lng);
-  addVP(p1.lat,p1.lng);
-  addVP(p2.lat,p2.lng);
-  addVP(p3.lat,p3.lng);
+  const gateCount=8;
+  const rotation=Math.random()*360;
+  const direction=Math.random()<.5?-1:1;
+  const gates=[];
+  for(let i=0;i<gateCount;i++){
+    const angle=rotation+direction*(i*360/gateCount+(Math.random()-.5)*16);
+    const radius=760+Math.random()*360;
+    const p=dest(base.lat,base.lng,(angle+360)%360,radius);
+    const wave=Math.sin(i/gateCount*Math.PI*2+rotation*Math.PI/180);
+    gates.push({...p,targetAlt:Math.round(95+wave*30+Math.random()*24)});
+  }
+  gates.forEach(p=>addVP(p.lat,p.lng,{targetAlt:p.targetAlt,courseGate:true}));
+  const finish=dest(base.lat,base.lng,(rotation-direction*18+360)%360,230);
+  addVP(finish.lat,finish.lng,{targetAlt:55,courseGate:true});
+  const routeLength=gates.reduce((sum,p,i)=>{const prev=i?gates[i-1]:base;return sum+hav(prev.lat,prev.lng,p.lat,p.lng);},0)+hav(gates.at(-1).lat,gates.at(-1).lng,finish.lat,finish.lng);
   updateGamePanel();
-  showInstructor('練習コースを作成しました。VP-1から順に通過し、進入面・転移面との位置関係を見てください。',5200,'info');
-  log('練習コース自動作成: OLS×1 / VP×4','ok');
+  showInstructor(`約5分のランダムコースを作成しました。${vpList.length}個のリングを順番に通過してください。`,5200,'info');
+  log(`5分ランダムコース: OLS×1 / リング×${vpList.length} / 約${(routeLength/1000).toFixed(1)}km`,'ok');
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -3154,13 +3177,13 @@ function resetAll(){
    v14 — 100-POINT FLIGHT SCORE ENGINE
    ══════════════════════════════════════════════════════
    採点内訳 (満点100pt):
-     ゲート通過  10pt × 通過数 (最大4ゲート = 40pt)
+     ゲート通過  コース内の通過率 (最大40pt)
      安全飛行    30pt − OLS違反×5 − 低高度×3  (下限0)
      着陸品質    30pt  (速度12 + 降下率12 + 進入方位6)
    ══════════════════════════════════════════════════════ */
 
 function computeScore100(){
-  var gate=Math.min(40,missionsCompleted*10);
+  var gate=courseGateScore();
   // v15.2: 建物衝突-10/地表衝突-8を安全項に追加 (安全項の下限0は維持)
   var safety=Math.max(0,30-olsViolCount*5-msaViolCount*3-bldHitCount*10-terHitCount*8);
   return Math.min(100,gate+safety+landingScore);
@@ -3296,7 +3319,7 @@ function showSessionResult14(){
   if(ring){ring.textContent=g.ltr;ring.style.color=g.col;ring.style.borderColor=g.col;}
   var bd=document.getElementById('sess-breakdown');
   if(bd){
-    var gate=Math.min(40,missionsCompleted*10);
+    var gate=courseGateScore();
     var safety=Math.max(0,30-olsViolCount*5-msaViolCount*3);
     var ls=landingScore;
     var total=s;
@@ -3343,7 +3366,7 @@ window.updateGamePanel=function(){
   var p=document.getElementById('game-panel');
   if(!p)return;
   if(!flyOn){p.innerHTML='<div class="hn">飛行開始でスコア表示</div>';return;}
-  var gate=Math.min(40,missionsCompleted*10);
+  var gate=courseGateScore();
   var safety=Math.max(0,30-olsViolCount*5-msaViolCount*3);
   var unvisited=vpList.filter(function(v){return !v.visited;});
   var m=Math.floor(flightSec/60),s2=flightSec%60;
@@ -3364,7 +3387,7 @@ window.updateGamePanel=function(){
     +(unvisited.length
       ?'<div style="margin-top:3px">次: <span style="color:var(--acg)">'+(unvisited[0]&&unvisited[0].label||'—')+'</span></div>'
       :'<div style="color:var(--gr)">✓ 全ゲート通過！</div>')
-    +'<div style="font-size:8px;color:var(--tx3);margin-top:4px;line-height:1.5">採点: ゲート×10 + 安全30 + 着陸30 = 100pt</div>'
+    +'<div style="font-size:8px;color:var(--tx3);margin-top:4px;line-height:1.5">採点: ゲート通過率40 + 安全30 + 着陸30 = 100pt</div>'
     +'</div>';
 };
 

@@ -4,6 +4,7 @@ Thumbs.db
 .vscode/
 .idea/
 .wrangler/
+.mapbox-token
 *.log
 
 # Local-only launch helpers are kept in the repository intentionally.
