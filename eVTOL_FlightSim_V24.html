@@ -541,7 +541,7 @@ canvas.dial{border-radius:50%;border:1.5px solid rgba(24,192,232,.2);box-shadow:
     <option value="heli">🚁 ヘリ風</option>
     <option value="trainer">🧑‍🏫 教材アシスト</option>
   </select>
-  <button class="hb" onclick="setupTrainingScenario()" title="同じ場所・設定では同じ形になる約5分の空中コースを作成">🎯 固定5分コース</button>
+  <button class="hb" onclick="setupTrainingScenario()" title="OLSの出発・進入方向に連動する約5分の空中周遊コースを作成">🎯 OLS周遊コース</button>
   <div class="hd"></div>
   <select class="msel" id="mstyle" onchange="changeStyle()">
     <option value="standard">🏙 Standard 3D</option>
@@ -720,8 +720,12 @@ canvas.dial{border-radius:50%;border:1.5px solid rgba(24,192,232,.2);box-shadow:
         <div class="fi"><label>通過上限高度(m AGL)</label><input type="number" id="gate-alt" value="120" min="20" max="500" step="10"></div>
       </div>
       <div class="g2">
-        <div class="fi"><label>コリドー幅(m)</label><input type="number" id="corridor-width" value="180" min="80" max="500" step="20"></div>
-        <div class="fi"><label>通過ゲート数</label><input type="number" id="course-gates" value="9" min="6" max="12" step="1"></div>
+        <div class="fi"><label>コリドー幅(m)</label><input type="number" id="corridor-width" value="180" min="80" max="500" step="20" onchange="scheduleActiveTrainingCourseRebuild()"></div>
+        <div class="fi"><label>通過ゲート数</label><input type="number" id="course-gates" value="9" min="6" max="12" step="1" onchange="scheduleActiveTrainingCourseRebuild()"></div>
+      </div>
+      <div class="g2">
+        <div class="fi"><label>周遊最低高度(ft AGL)</label><input type="number" id="course-min-ft" value="1000" min="300" max="2500" step="100" onchange="scheduleActiveTrainingCourseRebuild()"></div>
+        <div class="fi"><label>周遊最高高度(ft AGL)</label><input type="number" id="course-max-ft" value="1500" min="400" max="3000" step="100" onchange="scheduleActiveTrainingCourseRebuild()"></div>
       </div>
       <div class="g2">
         <div class="fi"><label>最低安全高度ゲーム判定(m)</label><input type="number" id="msa-game" value="60" min="0" max="300" step="10"></div>
@@ -729,7 +733,8 @@ canvas.dial{border-radius:50%;border:1.5px solid rgba(24,192,232,.2);box-shadow:
           <select id="warn-sens"><option value="easy" selected>やさしい</option><option value="normal">標準</option><option value="strict">厳しめ</option></select>
         </div>
       </div>
-      <button class="btn pr full" onclick="setupTrainingScenario()">🎯 約5分の固定空中コースを作成</button>
+      <button class="btn pr full" onclick="setupTrainingScenario()">🎯 OLS連動の約5分周遊コースを作成</button>
+      <button class="btn full" onclick="setupFixedRandomScenario()">固定ランダムコースを作成</button>
       <div class="hn" style="margin-top:4px">目的は操縦技能評価ではなく、FATO、進入面、転移面、周辺空間の位置関係をゲーム感覚で体験することです。</div>
     </div>
   </div>
@@ -1724,12 +1729,14 @@ function addOLS(lat,lng){
   const ols={id,lat,lng,p,mkr,lyrId:null,md:null};
   olsList.push(ols);renderOLS3D(ols);updateOLSList();
   log(`OLS設置 (${lat.toFixed(4)},${lng.toFixed(4)}) ${p.std} D=${p.d}m`,'ok');
+  return ols;
 }
 function removeOLS(id){
   const i=olsList.findIndex(o=>o.id===id);if(i<0)return;
   const o=olsList[i];
   try{if(map&&o.lyrId&&map.getLayer(o.lyrId))map.removeLayer(o.lyrId);}catch(e){}
   o.mkr.remove();olsList.splice(i,1);updateOLSList();
+  if(TRAINING_CORRIDOR.sourceOLSId===id){clearCourseGates();clearTrainingCorridor();}
 }
 
 /* OLS パラメータをその場で編集して再描画 */
@@ -1745,6 +1752,7 @@ function editOLSParam(id,field,val){
     o.p[field]=val;
   }
   renderOLS3D(o);
+  scheduleLinkedTrainingCourseRebuild(o);
   // ヒント再計算
   if(['d1cs2','d1ce1','d2cs2','d2ce1'].includes(field)){
     const n=field.startsWith('d1')?1:2;
@@ -1892,7 +1900,7 @@ function olsHAt(distM,p){
    VERTIPORT
    ═══════════════════════════════════════════════════════ */
 function addVP(lat,lng,options={}){
-  const id=uid(),n=vpList.length+1,label=`VP-${n}`;
+  const id=uid(),n=vpList.length+1,label=options.label||`VP-${n}`;
   const el=document.createElement('div');
   const targetAlt=Number.isFinite(options.targetAlt)?options.targetAlt:null;
   el.className='flight-gate-marker';
@@ -1900,8 +1908,9 @@ function addVP(lat,lng,options={}){
   const mkr=new mapboxgl.Marker({element:el,pitchAlignment:'viewport',rotationAlignment:'viewport',occludedOpacity:.18}).setLngLat([lng,lat]);
   if(targetAlt!==null&&typeof mkr.setAltitude==='function')mkr.setAltitude(targetAlt);
   mkr.addTo(map);
-  vpList.push({id,lat,lng,label,mkr,el,visited:false,targetAlt,courseGate:!!options.courseGate});updateVPList();
-  log(`${label} 設置 (${lat.toFixed(4)},${lng.toFixed(4)})`,'ok');
+  vpList.push({id,lat,lng,label,mkr,el,visited:false,targetAlt,courseGate:!!options.courseGate,
+    courseIndex:Number.isFinite(options.courseIndex)?options.courseIndex:null,phase:options.phase||null});updateVPList();
+  if(!options.silent)log(`${label} 設置 (${lat.toFixed(4)},${lng.toFixed(4)})`,'ok');
 }
 function updateVPList(){
   const b=document.getElementById('vp-list');
@@ -2006,7 +2015,7 @@ function initHeli(){
   const ge=terrainElevAt(s.lat,s.lng);
   H.gnd=(ge!=null)?ge:0;
   H.alt=0; H.altMSL=H.gnd;            // v15: 地表に接地した状態から開始
-  H.hdg=0;H.pitch=0;H.roll=0;
+  H.hdg=Number.isFinite(TRAINING_CORRIDOR.departureHdg)?TRAINING_CORRIDOR.departureHdg:0;H.pitch=0;H.roll=0;
   H.spd=0;H.spdKmh=0;
   H.phase='hover';H.trailC=[[H.lng,H.lat,H.alt]];
   H.olsViol=false;H.msaViol=false;H.gEffect=false;
@@ -2018,7 +2027,7 @@ function initHeli(){
   _mouseDX=0;_mouseDY=0;_mouseL=false;_mouseR=false;
   VEL.x=0;VEL.y=0;VEL.z_ns=0;
   // カメラリセット
-  CAM.lat=s.lat;CAM.lng=s.lng;CAM.alt=s.alt||50;CAM.bearing=0;CAM.pitch=60;
+  CAM.lat=s.lat;CAM.lng=s.lng;CAM.alt=s.alt||50;CAM.bearing=H.hdg;CAM.pitch=60;
   CAMS.init=false; // v15: スムーズカメラ状態をリセット
   olsViolCount=0;msaViolCount=0;_prevOls=false;_prevMsa=false;
   bldHitCount=0;terHitCount=0;_prevBldHit=false;H.bldHit=false;H.proxBld=999;_bldWarnUntil=0;
@@ -3110,21 +3119,29 @@ function computeProximity(){
   }catch(e){}
 }
 function nextTarget(){
-  return vpList.find(v=>!v.visited)||null;
+  const gate=vpList.find(v=>!v.visited);if(gate)return gate;
+  if(flyOn&&TRAINING_CORRIDOR.mode==='ols'&&START.lat!=null)return{lat:START.lat,lng:START.lng,label:'FATO帰投',targetAlt:12,returnTarget:true};
+  return null;
 }
 function courseGateScore(){return vpList.length?Math.round(40*Math.min(vpList.length,missionsCompleted)/vpList.length):0;}
 function checkVPProximity(){
   const tgt=nextTarget();
   if(!tgt)return;
+  if(tgt.returnTarget)return;
   const r=+(document.getElementById('gate-radius')?.value||85);
   const altMax=+(document.getElementById('gate-alt')?.value||120);
-  const altLow=tgt.targetAlt===null?0:Math.max(0,tgt.targetAlt-45);
-  const altHigh=tgt.targetAlt===null?altMax:tgt.targetAlt+45;
+  const altTolerance=tgt.courseGate?35:45;
+  const passRadius=tgt.courseGate?Math.min(r,55):r;
+  const altLow=tgt.targetAlt===null?0:Math.max(0,tgt.targetAlt-altTolerance);
+  const altHigh=tgt.targetAlt===null?altMax:tgt.targetAlt+altTolerance;
   const d=hav(H.lat,H.lng,tgt.lat,tgt.lng);
-  if(d<r && H.alt>=altLow && H.alt<=altHigh){
+  if(d<passRadius && H.alt>=altLow && H.alt<=altHigh){
     tgt.visited=true;missionsCompleted++;gateScore=courseGateScore();
     updateVPList();updateGamePanel();
-    showInstructor(`${tgt.label} 通過。次のゲートへ。制限表面と進入方向の見え方を確認してください。`,3600,'info');
+    const left=vpList.filter(v=>v.courseGate&&!v.visited).length;
+    try{if(navigator.vibrate)navigator.vibrate(40);}catch(e){}
+    if(left)showInstructor(`${tgt.label} 通過。残り${left}リング。コリドー中心線に沿って高度を合わせてください。`,3200,'info');
+    else showInstructor('全リング通過。開始地点のバーティポートへ戻り、静かに着陸してください。',4800,'info');
     log(`${tgt.label} 通過: d=${Math.round(d)}m alt=${Math.round(H.alt)}m`,'ok');
   }
 }
@@ -3144,7 +3161,7 @@ function updateTrainingHUD(){
   const r=+(document.getElementById('gate-radius')?.value||85);
   const altMax=+(document.getElementById('gate-alt')?.value||120);
   const targetAlt=tgt.targetAlt===null?altMax*.55:tgt.targetAlt;
-  const altWarn=tgt.targetAlt===null?H.alt>altMax:Math.abs(H.alt-targetAlt)>45;
+  const altWarn=tgt.targetAlt===null?H.alt>altMax:Math.abs(H.alt-targetAlt)>(tgt.courseGate?35:45);
   cue.className='on '+(altWarn?'warn':d<r?'':'');
   txt.textContent=`${tgt.label} ${Math.round(d)}m / 方位差 ${Math.round(rel)}° / 目標高度 ${Math.round(targetAlt)}m`;
   cue.style.left=(50+clamp(rel/3,-22,22))+'%';
@@ -3157,7 +3174,8 @@ function updateTrainingHUD(){
     else if(H.alt>altMax)showInstructor('ゲート高度より高めです。↓でパワーを抜き、前方を見ながら降下してください。',2200,'warn');
   }
 }
-let TRAINING_CORRIDOR={coords:[],polygon:[],widthM:180,seed:0,base:null};
+let TRAINING_CORRIDOR={coords:[],polygon:[],widthM:180,seed:0,base:null,sourceOLSId:null,
+  departureHdg:0,arrivalHdg:0,altBandFt:[1000,1500],lenM:0,estMin:0,mode:null};
 function buildCorridorPolygon(coords,widthM){
   if(coords.length<2)return [];
   const left=[],right=[],half=widthM/2;
@@ -3228,8 +3246,12 @@ function renderTrainingCorridor3D(){
       const ribbon=new THREE.Mesh(geo,mat);ribbon.renderOrder=1100;this._scn.add(ribbon);
       const addRail=(pts,color,opacity)=>{const g=new THREE.BufferGeometry().setFromPoints(pts),lm=new THREE.LineBasicMaterial({color,transparent:true,opacity,depthWrite:false,depthTest:false});const line=new THREE.Line(g,lm);line.renderOrder=1101;this._scn.add(line);};
       addRail(leftRail,0x63e7ff,.85);addRail(rightRail,0x63e7ff,.85);addRail(topLeftRail,0xa5f3ff,.7);addRail(topRightRail,0xa5f3ff,.7);addRail(centerRail,0xffffff,.92);
-      for(let i=1;i<route.length;i++){
-        const p=route[i],prev=route[i-1],next=route[Math.min(route.length-1,i+1)];
+      this._rings=[];
+      for(const gate of vpList.filter(v=>v.courseGate)){
+        let i=Number.isFinite(gate.courseIndex)?Math.round(gate.courseIndex):-1;
+        if(i<0||i>=route.length)i=route.reduce((best,p,j)=>hav(gate.lat,gate.lng,p[1],p[0])<best.d?{i:j,d:hav(gate.lat,gate.lng,p[1],p[0])}:best,{i:0,d:Infinity}).i;
+        i=Math.max(1,Math.min(route.length-2,i));
+        const p=[gate.lng,gate.lat,Number.isFinite(gate.targetAlt)?gate.targetAlt:route[i][2]],prev=route[i-1],next=route[i+1];
         const heading=brg(prev[1],prev[0],next[1],next[0]),baseAlt=corridorAltMSL(p),segments=64,thick=2.6;
         const gv=[],gi=[];
         for(let s=0;s<segments;s++){
@@ -3240,17 +3262,29 @@ function renderTrainingCorridor3D(){
           const b=s*4;gi.push(b,b+1,b+3,b,b+3,b+2);
         }
         const gg=new THREE.BufferGeometry();gg.setAttribute('position',new THREE.Float32BufferAttribute(gv,3));gg.setIndex(gi);
-        const gm=new THREE.MeshBasicMaterial({color:i===1?0xffda55:0x45e8ff,transparent:true,opacity:.9,side:THREE.DoubleSide,depthWrite:false,depthTest:false});
-        const ring=new THREE.Mesh(gg,gm);ring.renderOrder=1102;this._scn.add(ring);
+        const gm=new THREE.MeshBasicMaterial({color:0x45e8ff,transparent:true,opacity:.64,side:THREE.DoubleSide,depthWrite:false,depthTest:false});
+        const ring=new THREE.Mesh(gg,gm);ring.renderOrder=1102;this._scn.add(ring);this._rings.push({mesh:ring,mat:gm,gate});
       }
       this._ren=new THREE.WebGLRenderer({canvas:m.getCanvas(),context:gl,antialias:true});this._ren.autoClear=false;
     },
-    render(gl,mtx){this._cam.projectionMatrix=new THREE.Matrix4().fromArray(mtx);this._ren.resetState();this._ren.render(this._scn,this._cam);}
+    render(gl,mtx){
+      this._cam.projectionMatrix=new THREE.Matrix4().fromArray(mtx);
+      const next=vpList.find(v=>v.courseGate&&!v.visited),pulse=.82+.16*Math.sin(performance.now()/180);
+      (this._rings||[]).forEach(R=>{
+        if(R.gate.visited){R.mat.color.setHex(0x10b060);R.mat.opacity=.28;}
+        else if(R.gate===next){R.mat.color.setHex(0xf0c030);R.mat.opacity=pulse;}
+        else{R.mat.color.setHex(0x45e8ff);R.mat.opacity=.58;}
+      });
+      this._ren.resetState();this._ren.render(this._scn,this._cam);
+    }
   };
   map.addLayer(layer);
 }
-function setTrainingCorridor(coords,widthM,seed=TRAINING_CORRIDOR.seed||0,base=TRAINING_CORRIDOR.base){
-  TRAINING_CORRIDOR={coords:coords.map(p=>p.slice()),widthM,seed,base:base?{lat:base.lat,lng:base.lng}:null,polygon:buildCorridorPolygon(coords,widthM)};
+function setTrainingCorridor(coords,widthM,seed=TRAINING_CORRIDOR.seed||0,base=TRAINING_CORRIDOR.base,meta={}){
+  TRAINING_CORRIDOR={coords:coords.map(p=>p.slice()),widthM,seed,base:base?{lat:base.lat,lng:base.lng}:null,polygon:buildCorridorPolygon(coords,widthM),
+    sourceOLSId:meta.sourceOLSId??null,departureHdg:Number.isFinite(meta.departureHdg)?meta.departureHdg:0,
+    arrivalHdg:Number.isFinite(meta.arrivalHdg)?meta.arrivalHdg:0,altBandFt:meta.altBandFt||[1000,1500],
+    lenM:Number.isFinite(meta.lenM)?meta.lenM:0,estMin:Number.isFinite(meta.estMin)?meta.estMin:0,mode:meta.mode||null};
   ensureTrainingCorridorLayers();
   map?.getSource('training-corridor')?.setData(corridorFeatureCollection());
   renderTrainingCorridor3D();
@@ -3259,9 +3293,14 @@ function setTrainingCorridor(coords,widthM,seed=TRAINING_CORRIDOR.seed||0,base=T
   updateV24GPS(true);
 }
 function clearTrainingCorridor(){
-  const widthM=TRAINING_CORRIDOR.widthM||180;
-  TRAINING_CORRIDOR={coords:[],polygon:[],widthM,seed:0,base:null};
+  const widthM=TRAINING_CORRIDOR.widthM||180,altBandFt=TRAINING_CORRIDOR.altBandFt||[1000,1500];
+  TRAINING_CORRIDOR={coords:[],polygon:[],widthM,seed:0,base:null,sourceOLSId:null,departureHdg:0,arrivalHdg:0,altBandFt,lenM:0,estMin:0,mode:null};
   ensureTrainingCorridorLayers();map?.getSource('training-corridor')?.setData(corridorFeatureCollection());removeTrainingCorridor3D();updateV24GPS(true);
+}
+
+function clearCourseGates(){
+  vpList.filter(v=>v.courseGate).forEach(v=>v.mkr.remove());
+  vpList=vpList.filter(v=>!v.courseGate);missionsCompleted=0;gateScore=0;updateVPList();updateGamePanel();
 }
 
 function fixedCourseRandom(seed){
@@ -3271,18 +3310,83 @@ function fixedCourseSeed(base,totalGates,corridorWidth){
   return (Math.imul(Math.round((base.lat+90)*10000),73856093)^Math.imul(Math.round((base.lng+180)*10000),19349663)^Math.imul(totalGates,83492791)^Math.round(corridorWidth))>>>0;
 }
 
+function courseSmooth01(t){t=clamp(t,0,1);return t*t*(3-2*t);}
+function courseUnit2(x,y){const m=Math.hypot(x,y)||1;return[x/m,y/m];}
+function courseCum2(pts){const out=[0];for(let i=1;i<pts.length;i++)out.push(out[i-1]+Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]));return out;}
+
+function buildOLSAlignedCourseData(ols){
+  if(!ols)throw new Error('基準OLSがありません');
+  const md=buildOLSMesh(ols.lat,ols.lng,ols.p);ols.md=md;
+  const depRaw=md.centerlines?.[0]?.pts||[],arrRaw=md.centerlines?.[1]?.pts||[];
+  if(depRaw.length<2||arrRaw.length<2)throw new Error('OLS中心線を生成できません');
+  const dep=[[0,0],...depRaw.map(p=>[p[0],p[1]])],arrFwd=[[0,0],...arrRaw.map(p=>[p[0],p[1]])],arr=[...arrFwd].reverse();
+  const dEnd=dep.at(-1),aEnd=arr[0],depTan=courseUnit2(dEnd[0]-dep.at(-2)[0],dEnd[1]-dep.at(-2)[1]),inTan=courseUnit2(arr[1][0]-aEnd[0],arr[1][1]-aEnd[1]);
+  const side=[-depTan[1],depTan[0]],mid=[(dEnd[0]+aEnd[0])/2,(dEnd[1]+aEnd[1])/2];
+  // v19の周遊形状を保ちつつ、標準条件で離着陸を含め約5分に収める。
+  const spread=Math.max(520,Math.min(1000,md.dims.totalApprLen*.48)),lead=Math.max(220,Math.min(520,md.dims.totalApprLen*.22));
+  const controls=[
+    new THREE.Vector3(dEnd[0],dEnd[1],0),new THREE.Vector3(dEnd[0]+depTan[0]*lead,dEnd[1]+depTan[1]*lead,0),
+    new THREE.Vector3(dEnd[0]+depTan[0]*lead*1.7+side[0]*spread*.35,dEnd[1]+depTan[1]*lead*1.7+side[1]*spread*.35,0),
+    new THREE.Vector3(mid[0]+side[0]*spread,mid[1]+side[1]*spread,0),
+    new THREE.Vector3(aEnd[0]-inTan[0]*lead*1.7+side[0]*spread*.35,aEnd[1]-inTan[1]*lead*1.7+side[1]*spread*.35,0),
+    new THREE.Vector3(aEnd[0]-inTan[0]*lead,aEnd[1]-inTan[1]*lead,0),new THREE.Vector3(aEnd[0],aEnd[1],0)
+  ];
+  const curve=new THREE.CatmullRomCurve3(controls,false,'centripetal',.35),connector=[];
+  for(let i=0;i<=128;i++){const q=curve.getPoint(i/128);connector.push([q.x,q.y]);}
+  const minIn=+(document.getElementById('course-min-ft')?.value||1000),maxIn=+(document.getElementById('course-max-ft')?.value||1500);
+  const minFt=Math.max(300,Math.min(minIn,maxIn-50)),maxFt=Math.max(minFt+50,Math.max(minIn,maxIn));
+  const low=minFt*.3048,high=maxFt*.3048,midAlt=(low+high)/2,amp=(high-low)*.36,baseMSL=(+ols.p.elev||0)+(+ols.p.agl||0);
+  const depCum=courseCum2(dep),arrCumFwd=courseCum2(arrFwd),depOuterAGL=Math.min(md.dims.endH,Math.max(0,(depCum.at(-1)-md.dims.saR)/Math.max(1,ols.p.slp))),arrOuterAGL=Math.min(md.dims.endH,Math.max(0,(arrCumFwd.at(-1)-md.dims.saR)/Math.max(1,ols.p.slp)));
+  const depOuterMSL=baseMSL+depOuterAGL,arrOuterMSL=baseMSL+arrOuterAGL,path=[];
+  dep.forEach((xy,i)=>{const agl=Math.min(md.dims.endH,Math.max(0,(depCum[i]-md.dims.saR)/Math.max(1,ols.p.slp)));path.push({x:xy[0],y:xy[1],altMSL:baseMSL+agl,phase:i===0?'TAKEOFF':'DEPARTURE'});});
+  connector.slice(1,-1).forEach((xy,j)=>{
+    const u=(j+1)/(connector.length-1),ll=m2ll(ols.lat,ols.lng,xy[0],xy[1]),terrain=terrainElevAt(ll.lat,ll.lng),cruiseAGL=midAlt+amp*Math.sin((u-.22)/.56*Math.PI*2),cruiseMSL=(terrain!=null?terrain:(+ols.p.elev||0))+cruiseAGL;
+    let altMSL;if(u<.22){const k=courseSmooth01(u/.22);altMSL=depOuterMSL+(cruiseMSL-depOuterMSL)*k;}else if(u>.78){const k=courseSmooth01((u-.78)/.22);altMSL=cruiseMSL+(arrOuterMSL-cruiseMSL)*k;}else altMSL=cruiseMSL;
+    path.push({x:xy[0],y:xy[1],altMSL,phase:u<.22?'CLIMB':u>.78?'DESCENT':'CRUISE'});
+  });
+  arr.forEach((xy,i)=>{const fwdIdx=arrFwd.length-1-i,agl=Math.min(md.dims.endH,Math.max(0,(arrCumFwd[fwdIdx]-md.dims.saR)/Math.max(1,ols.p.slp)));path.push({x:xy[0],y:xy[1],altMSL:baseMSL+agl,phase:i===arr.length-1?'LANDING':'APPROACH'});});
+  const coords=path.map(q=>{const ll=m2ll(ols.lat,ols.lng,q.x,q.y),terrain=terrainElevAt(ll.lat,ll.lng);return[ll.lng,ll.lat,Math.max(12,q.altMSL-(terrain!=null?terrain:(+ols.p.elev||0)))];});
+  const cum=[0];for(let i=1;i<path.length;i++)cum.push(cum.at(-1)+Math.hypot(path[i].x-path[i-1].x,path[i].y-path[i-1].y));
+  const lenM=cum.at(-1),gateCount=clamp(Math.round(+(document.getElementById('course-gates')?.value||9)),6,12),gates=[];
+  for(let k=0;k<gateCount;k++){
+    const fraction=gateCount===1?.5:.08+k/(gateCount-1)*.88,target=lenM*fraction;let i=1;while(i<cum.length-1&&cum[i]<target)i++;
+    const q=path[i],c=coords[i];gates.push({lat:c[1],lng:c[0],targetAlt:c[2],courseIndex:i,phase:q.phase,label:`リング${k+1}`});
+  }
+  return{coords,gates,lenM,estMin:lenM/(105/3.6)/60+1.4,altBandFt:[minFt,maxFt],sourceOLSId:ols.id,
+    departureHdg:((+ols.p.h1%360)+360)%360,arrivalHdg:(((+ols.p.h2||0)+180)%360+360)%360,base:{lat:ols.lat,lng:ols.lng}};
+}
+
+function applyOLSAlignedTrainingCourse(ols,announce=true){
+  const data=buildOLSAlignedCourseData(ols),width=clamp(+(document.getElementById('corridor-width')?.value||180),80,500);
+  clearCourseGates();data.gates.forEach(g=>addVP(g.lat,g.lng,{label:g.label,targetAlt:g.targetAlt,courseGate:true,courseIndex:g.courseIndex,phase:g.phase,silent:true}));
+  setTrainingCorridor(data.coords,width,0,data.base,{...data,mode:'ols'});missionsCompleted=0;gateScore=0;updateGamePanel();
+  if(announce)showInstructor(`OLS方位同期コース: DIR1 ${Math.round(data.departureHdg)}°で離陸し、DIR2から最終進入。巡航${data.altBandFt[0]}〜${data.altBandFt[1]}ft、リング${data.gates.length}個を順番に通過してください。`,7200,'info');
+  log(`OLS周遊コース: ${(data.lenM/1000).toFixed(1)}km / リング×${data.gates.length} / 巡航${data.altBandFt[0]}〜${data.altBandFt[1]}ft / 想定${data.estMin.toFixed(1)}分`,'ok');
+}
+
+let _trainingCourseRebuildTimer=0;
+function scheduleLinkedTrainingCourseRebuild(ols){
+  if(flyOn||TRAINING_CORRIDOR.mode!=='ols'||TRAINING_CORRIDOR.sourceOLSId!==ols?.id)return;
+  clearTimeout(_trainingCourseRebuildTimer);_trainingCourseRebuildTimer=setTimeout(()=>{try{applyOLSAlignedTrainingCourse(ols,false);}catch(e){log('コース更新: '+e.message,'e');}},140);
+}
+function scheduleActiveTrainingCourseRebuild(){const ols=olsList.find(o=>o.id===TRAINING_CORRIDOR.sourceOLSId);if(ols)scheduleLinkedTrainingCourseRebuild(ols);}
+
 function setupTrainingScenario(){
   if(!map){alert('先にMapboxトークンを入力して地図を起動してください');return;}
   if(flyOn)toggleFly();
-  // Existing objects are cleared before creating a fresh five-minute course.
+  const c=TRAINING_CORRIDOR.base||map.getCenter(),base={lat:c.lat,lng:c.lng};
   olsList.slice().forEach(o=>removeOLS(o.id));
   vpList.forEach(v=>v.mkr.remove());vpList=[];updateVPList();
-  const c=TRAINING_CORRIDOR.base||map.getCenter();
-  const base={lat:c.lat,lng:c.lng};
-  // One OLS at the start and an irregular loop of ring gates. At 70-85 km/h,
-  // the 5-7 km route plus takeoff/landing and turns takes about five minutes.
-  addOLS(base.lat,base.lng);
-  setStartPoint(base.lat,base.lng);
+  clearTrainingCorridor();const ols=addOLS(base.lat,base.lng);setStartPoint(base.lat,base.lng);
+  try{applyOLSAlignedTrainingCourse(ols,true);}catch(e){log('OLS周遊コース: '+e.message,'e');alert('コースを生成できませんでした: '+e.message);}
+}
+
+function setupFixedRandomScenario(){
+  if(!map){alert('先にMapboxトークンを入力して地図を起動してください');return;}
+  if(flyOn)toggleFly();
+  const c=TRAINING_CORRIDOR.base||map.getCenter(),base={lat:c.lat,lng:c.lng};
+  olsList.slice().forEach(o=>removeOLS(o.id));vpList.forEach(v=>v.mkr.remove());vpList=[];updateVPList();clearTrainingCorridor();
+  addOLS(base.lat,base.lng);setStartPoint(base.lat,base.lng);
   const totalGates=clamp(Math.round(+(document.getElementById('course-gates')?.value||9)),6,12);
   const gateCount=totalGates-1;
   const corridorWidth=clamp(+(document.getElementById('corridor-width')?.value||180),80,500);
@@ -3297,13 +3401,14 @@ function setupTrainingScenario(){
     const wave=Math.sin(i/gateCount*Math.PI*2+rotation*Math.PI/180);
     gates.push({...p,targetAlt:Math.round(95+wave*30+rnd()*24)});
   }
-  gates.forEach(p=>addVP(p.lat,p.lng,{targetAlt:p.targetAlt,courseGate:true}));
+  gates.forEach((p,i)=>addVP(p.lat,p.lng,{label:`リング${i+1}`,targetAlt:p.targetAlt,courseGate:true,courseIndex:i+1,phase:'CRUISE',silent:true}));
   const finish=dest(base.lat,base.lng,(rotation-direction*18+360)%360,230);
-  addVP(finish.lat,finish.lng,{targetAlt:55,courseGate:true});
-  setTrainingCorridor([[base.lng,base.lat,45],...gates.map(p=>[p.lng,p.lat,p.targetAlt]),[finish.lng,finish.lat,55]],corridorWidth,courseSeed,base);
+  addVP(finish.lat,finish.lng,{label:`リング${gates.length+1}`,targetAlt:55,courseGate:true,courseIndex:gates.length+1,phase:'APPROACH',silent:true});
   const routeLength=gates.reduce((sum,p,i)=>{const prev=i?gates[i-1]:base;return sum+hav(prev.lat,prev.lng,p.lat,p.lng);},0)+hav(gates.at(-1).lat,gates.at(-1).lng,finish.lat,finish.lng);
+  setTrainingCorridor([[base.lng,base.lat,45],...gates.map(p=>[p.lng,p.lat,p.targetAlt]),[finish.lng,finish.lat,55]],corridorWidth,courseSeed,base,
+    {mode:'fixed',departureHdg:brg(base.lat,base.lng,gates[0].lat,gates[0].lng),lenM:routeLength,estMin:routeLength/(82/3.6)/60+1.2});
   updateGamePanel();
-  showInstructor(`約5分のランダムコースを作成しました。${vpList.length}個のリングを順番に通過してください。`,5200,'info');
+  showInstructor(`固定ランダムコースを作成しました。${vpList.length}個のリングを順番に通過してください。`,5200,'info');
   log(`5分固定コース: 空中コリドー幅${corridorWidth}m / リング×${vpList.length} / 約${(routeLength/1000).toFixed(1)}km / seed ${courseSeed}`,'ok');
 }
 
@@ -3358,8 +3463,11 @@ function initV24GPSMap(){
 }
 function updateV24GPS(force=false){
   if(!V24_GPS_MAP||!V24_GPS_READY)return;const now=performance.now();if(!force&&now-V24_GPS_LAST<200)return;V24_GPS_LAST=now;
-  const current=[H.lng,H.lat],remaining=vpList.filter(v=>!v.visited).map(v=>[v.lng,v.lat]);
-  const routeCoords=[current,...remaining];
+  const current=[H.lng,H.lat],nextGate=vpList.find(v=>v.courseGate&&!v.visited),guidanceTarget=nextTarget(),remaining=vpList.filter(v=>!v.visited).map(v=>[v.lng,v.lat]);
+  const planned=TRAINING_CORRIDOR.coords.length>1&&nextGate
+    ?TRAINING_CORRIDOR.coords.slice(Math.max(0,(Number.isFinite(nextGate.courseIndex)?nextGate.courseIndex:0)-2)).map(p=>p.slice(0,2))
+    :guidanceTarget?.returnTarget?[[guidanceTarget.lng,guidanceTarget.lat]]:remaining;
+  const routeCoords=[current,...planned];
   const route=V24_GPS_MAP.getSource('v24-route');if(route)route.setData({type:'FeatureCollection',features:routeCoords.length>1?[{type:'Feature',geometry:{type:'LineString',coordinates:routeCoords},properties:{}}]:[]});
   const corridor=V24_GPS_MAP.getSource('v24-corridor');if(corridor)corridor.setData({type:'FeatureCollection',features:TRAINING_CORRIDOR.polygon.length?[{type:'Feature',geometry:{type:'Polygon',coordinates:TRAINING_CORRIDOR.polygon},properties:{}}]:[]});
   const trailCoords=(H.trailC||[]).slice(-300).map(p=>[p[0],p[1]]);const trail=V24_GPS_MAP.getSource('v24-trail');if(trail)trail.setData({type:'FeatureCollection',features:trailCoords.length>1?[{type:'Feature',geometry:{type:'LineString',coordinates:trailCoords},properties:{}}]:[]});
