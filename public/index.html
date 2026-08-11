@@ -665,6 +665,10 @@ canvas.dial{border-radius:50%;border:1.5px solid rgba(24,192,232,.2);box-shadow:
         <div class="fi"><label>通過上限高度(m AGL)</label><input type="number" id="gate-alt" value="120" min="20" max="500" step="10"></div>
       </div>
       <div class="g2">
+        <div class="fi"><label>コリドー幅(m)</label><input type="number" id="corridor-width" value="180" min="80" max="500" step="20"></div>
+        <div class="fi"><label>通過ゲート数</label><input type="number" id="course-gates" value="9" min="6" max="12" step="1"></div>
+      </div>
+      <div class="g2">
         <div class="fi"><label>最低安全高度ゲーム判定(m)</label><input type="number" id="msa-game" value="60" min="0" max="300" step="10"></div>
         <div class="fi"><label>警告感度</label>
           <select id="warn-sens"><option value="easy" selected>やさしい</option><option value="normal">標準</option><option value="strict">厳しめ</option></select>
@@ -1223,6 +1227,8 @@ function onLoad(){
     map.addLayer({id:'ply-trail-l',type:'line',source:'ply-trail',
       paint:{'line-color':'#f0c030','line-width':2.5,'line-opacity':0.9}});
   }
+
+  ensureTrainingCorridorLayers();
 
   applyEnvironment(currentEnv);
   olsList.forEach(o=>renderOLS3D(o));
@@ -3084,6 +3090,41 @@ function updateTrainingHUD(){
     else if(H.alt>altMax)showInstructor('ゲート高度より高めです。↓でパワーを抜き、前方を見ながら降下してください。',2200,'warn');
   }
 }
+let TRAINING_CORRIDOR={coords:[],polygon:[],widthM:180};
+function buildCorridorPolygon(coords,widthM){
+  if(coords.length<2)return [];
+  const left=[],right=[],half=widthM/2;
+  coords.forEach((point,i)=>{
+    const prev=coords[Math.max(0,i-1)],next=coords[Math.min(coords.length-1,i+1)];
+    const heading=brg(prev[1],prev[0],next[1],next[0]);
+    const lp=dest(point[1],point[0],(heading+270)%360,half);
+    const rp=dest(point[1],point[0],(heading+90)%360,half);
+    left.push([lp.lng,lp.lat]);right.push([rp.lng,rp.lat]);
+  });
+  const ring=[...left,...right.reverse(),left[0]];
+  return [ring];
+}
+function corridorFeatureCollection(){
+  const features=[];
+  if(TRAINING_CORRIDOR.polygon.length)features.push({type:'Feature',properties:{kind:'corridor'},geometry:{type:'Polygon',coordinates:TRAINING_CORRIDOR.polygon}});
+  if(TRAINING_CORRIDOR.coords.length>1)features.push({type:'Feature',properties:{kind:'centerline'},geometry:{type:'LineString',coordinates:TRAINING_CORRIDOR.coords}});
+  return {type:'FeatureCollection',features};
+}
+function ensureTrainingCorridorLayers(){
+  if(!map||!map.isStyleLoaded())return;
+  if(!map.getSource('training-corridor'))map.addSource('training-corridor',{type:'geojson',data:corridorFeatureCollection()});
+  if(!map.getLayer('training-corridor-fill'))map.addLayer({id:'training-corridor-fill',type:'fill',source:'training-corridor',filter:['==',['get','kind'],'corridor'],paint:{'fill-color':'#35c9ef','fill-opacity':.18}});
+  if(!map.getLayer('training-corridor-edge'))map.addLayer({id:'training-corridor-edge',type:'line',source:'training-corridor',filter:['==',['get','kind'],'corridor'],paint:{'line-color':'#66dcf6','line-width':2,'line-opacity':.8}});
+  if(!map.getLayer('training-corridor-center'))map.addLayer({id:'training-corridor-center',type:'line',source:'training-corridor',filter:['==',['get','kind'],'centerline'],paint:{'line-color':'#ffffff','line-width':2,'line-opacity':.9,'line-dasharray':[2,2]}});
+}
+function setTrainingCorridor(coords,widthM){
+  TRAINING_CORRIDOR={coords:coords.slice(),widthM,polygon:buildCorridorPolygon(coords,widthM)};
+  ensureTrainingCorridorLayers();
+  map?.getSource('training-corridor')?.setData(corridorFeatureCollection());
+  updateV24GPS(true);
+}
+function clearTrainingCorridor(){setTrainingCorridor([],TRAINING_CORRIDOR.widthM||180);}
+
 function setupTrainingScenario(){
   if(!map){alert('先にMapboxトークンを入力して地図を起動してください');return;}
   if(flyOn)toggleFly();
@@ -3095,7 +3136,9 @@ function setupTrainingScenario(){
   // One OLS at the start and an irregular loop of ring gates. At 70-85 km/h,
   // the 5-7 km route plus takeoff/landing and turns takes about five minutes.
   addOLS(base.lat,base.lng);
-  const gateCount=8;
+  const totalGates=clamp(Math.round(+(document.getElementById('course-gates')?.value||9)),6,12);
+  const gateCount=totalGates-1;
+  const corridorWidth=clamp(+(document.getElementById('corridor-width')?.value||180),80,500);
   const rotation=Math.random()*360;
   const direction=Math.random()<.5?-1:1;
   const gates=[];
@@ -3109,10 +3152,11 @@ function setupTrainingScenario(){
   gates.forEach(p=>addVP(p.lat,p.lng,{targetAlt:p.targetAlt,courseGate:true}));
   const finish=dest(base.lat,base.lng,(rotation-direction*18+360)%360,230);
   addVP(finish.lat,finish.lng,{targetAlt:55,courseGate:true});
+  setTrainingCorridor([[base.lng,base.lat],...gates.map(p=>[p.lng,p.lat]),[finish.lng,finish.lat]],corridorWidth);
   const routeLength=gates.reduce((sum,p,i)=>{const prev=i?gates[i-1]:base;return sum+hav(prev.lat,prev.lng,p.lat,p.lng);},0)+hav(gates.at(-1).lat,gates.at(-1).lng,finish.lat,finish.lng);
   updateGamePanel();
   showInstructor(`約5分のランダムコースを作成しました。${vpList.length}個のリングを順番に通過してください。`,5200,'info');
-  log(`5分ランダムコース: OLS×1 / リング×${vpList.length} / 約${(routeLength/1000).toFixed(1)}km`,'ok');
+  log(`5分ランダムコース: コリドー幅${corridorWidth}m / リング×${vpList.length} / 約${(routeLength/1000).toFixed(1)}km`,'ok');
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -3152,6 +3196,9 @@ function initV24GPSMap(){
     V24_GPS_MAP.on('load',()=>{
       V24_GPS_READY=true;
       V24_GPS_MAP.addSource('v24-route',{type:'geojson',data:{type:'FeatureCollection',features:[]}});
+      V24_GPS_MAP.addSource('v24-corridor',{type:'geojson',data:{type:'FeatureCollection',features:[]}});
+      V24_GPS_MAP.addLayer({id:'v24-corridor-fill',type:'fill',source:'v24-corridor',paint:{'fill-color':'#39ccef','fill-opacity':.22}});
+      V24_GPS_MAP.addLayer({id:'v24-corridor-edge',type:'line',source:'v24-corridor',paint:{'line-color':'#84e7fb','line-width':1.5,'line-opacity':.9}});
       V24_GPS_MAP.addLayer({id:'v24-route-line',type:'line',source:'v24-route',paint:{'line-color':'#42e7ff','line-width':3,'line-opacity':.9}});
       V24_GPS_MAP.addSource('v24-trail',{type:'geojson',data:{type:'FeatureCollection',features:[]}});
       V24_GPS_MAP.addLayer({id:'v24-trail-line',type:'line',source:'v24-trail',paint:{'line-color':'#ffe062','line-width':2,'line-opacity':.9}});
@@ -3166,6 +3213,7 @@ function updateV24GPS(force=false){
   const current=[H.lng,H.lat],remaining=vpList.filter(v=>!v.visited).map(v=>[v.lng,v.lat]);
   const routeCoords=[current,...remaining];
   const route=V24_GPS_MAP.getSource('v24-route');if(route)route.setData({type:'FeatureCollection',features:routeCoords.length>1?[{type:'Feature',geometry:{type:'LineString',coordinates:routeCoords},properties:{}}]:[]});
+  const corridor=V24_GPS_MAP.getSource('v24-corridor');if(corridor)corridor.setData({type:'FeatureCollection',features:TRAINING_CORRIDOR.polygon.length?[{type:'Feature',geometry:{type:'Polygon',coordinates:TRAINING_CORRIDOR.polygon},properties:{}}]:[]});
   const trailCoords=(H.trailC||[]).slice(-300).map(p=>[p[0],p[1]]);const trail=V24_GPS_MAP.getSource('v24-trail');if(trail)trail.setData({type:'FeatureCollection',features:trailCoords.length>1?[{type:'Feature',geometry:{type:'LineString',coordinates:trailCoords},properties:{}}]:[]});
   const points=V24_GPS_MAP.getSource('v24-points');if(points)points.setData({type:'FeatureCollection',features:vpList.map(v=>({type:'Feature',geometry:{type:'Point',coordinates:[v.lng,v.lat]},properties:{visited:!!v.visited,label:v.label||'VP'}}))});
   V24_GPS_MAP.jumpTo({center:current,zoom:15.5,bearing:0,pitch:0});
@@ -3214,6 +3262,7 @@ function resetAll(){
   if(flyOn)toggleFly();
   olsList.slice().forEach(o=>removeOLS(o.id));
   vpList.forEach(v=>v.mkr.remove());vpList=[];updateVPList();
+  clearTrainingCorridor();
   score=0;missionsCompleted=0;olsViolCount=0;msaViolCount=0;flightSec=0;
   bldHitCount=0;terHitCount=0;_prevBldHit=false;
   landingScore=0;gateScore=0;wasAirborne=false;landingTriggered=false;
