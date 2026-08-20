@@ -24,21 +24,19 @@ export default {
     const url = new URL(request.url);
     if (url.pathname === '/api/service-config') {
       return new Response(JSON.stringify({
-        paidAccessEnabled: env.PAID_ACCESS_ENABLED === 'true',
-        paidPriceYen: 100,
-        paidMinutes: 10,
-        freePlan: 'bring-your-own-mapbox-token',
+        accessMode: 'organization-or-user-mapbox-public-token',
+        managedMapboxEnabled: env.MANAGED_MAPBOX_ENABLED === 'true',
       }), { status: 200, headers: securityHeaders() });
     }
     if (url.pathname !== '/api/mapbox-token') {
       return env.ASSETS.fetch(request);
     }
 
-    // Developer-funded Mapbox access stays closed until payment verification
-    // is implemented. Free users provide their own public token in-browser.
-    if (env.PAID_ACCESS_ENABLED !== 'true') {
-      return new Response(JSON.stringify({ error: 'Paid access is not enabled' }), {
-        status: 402,
+    // Managed access is optional for an organization deployment. When it is
+    // disabled, each user supplies a Mapbox Public Token in the browser.
+    if (env.MANAGED_MAPBOX_ENABLED !== 'true') {
+      return new Response(JSON.stringify({ error: 'Managed Mapbox access is disabled' }), {
+        status: 404,
         headers: securityHeaders(),
       });
     }

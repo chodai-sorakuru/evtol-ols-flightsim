@@ -4,14 +4,15 @@ const fs = require('fs');
 const path = require('path');
 const root = __dirname;
 const host = '127.0.0.1';
-const port = 8080;
+const port = Number(process.env.V24_PORT || 8080);
 const tokenFile = path.join(root, '.mapbox-token');
+const allowedOrigins = new Set([`http://localhost:${port}`, `http://${host}:${port}`]);
 
 http.createServer((req, res) => {
   const requestUrl = new URL(req.url, `http://${host}:${port}`);
   if (requestUrl.pathname === '/api/mapbox-token') {
     const origin = req.headers.origin || '';
-    if (origin && origin !== 'http://localhost:8080' && origin !== 'http://127.0.0.1:8080') {
+    if (origin && !allowedOrigins.has(origin)) {
       res.writeHead(403, {'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});
       return res.end(JSON.stringify({error:'Origin not allowed'}));
     }
@@ -30,11 +31,23 @@ http.createServer((req, res) => {
   catch { res.writeHead(400); return res.end('Bad Request'); }
   if (!name) name = 'eVTOL_FlightSim_V24.html';
   const target = path.resolve(root, name);
-  if (path.dirname(target) !== path.resolve(root)) { res.writeHead(403); return res.end('Forbidden'); }
+  const relative = path.relative(path.resolve(root), target);
+  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) { res.writeHead(403); return res.end('Forbidden'); }
   fs.readFile(target, (error, data) => {
     if (error) { res.writeHead(error.code === 'ENOENT' ? 404 : 500); return res.end('Not Found'); }
     const ext = path.extname(target).toLowerCase();
-    const type = ext === '.html' ? 'text/html; charset=utf-8' : ext === '.js' ? 'text/javascript; charset=utf-8' : 'application/octet-stream';
+    const types = {
+      '.html':'text/html; charset=utf-8',
+      '.js':'text/javascript; charset=utf-8',
+      '.css':'text/css; charset=utf-8',
+      '.json':'application/json; charset=utf-8',
+      '.png':'image/png',
+      '.jpg':'image/jpeg',
+      '.jpeg':'image/jpeg',
+      '.webp':'image/webp',
+      '.svg':'image/svg+xml'
+    };
+    const type = types[ext] || 'application/octet-stream';
     res.writeHead(200, {'Content-Type': type, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff'});
     res.end(data);
   });
